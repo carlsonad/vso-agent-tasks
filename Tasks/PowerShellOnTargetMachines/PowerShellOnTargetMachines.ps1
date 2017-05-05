@@ -1,5 +1,9 @@
 param (
-    [string]$environmentName,
+    [string]$environmentName,    
+    [string]$adminUserName,
+    [string]$adminPassword,
+    [string]$protocol,
+    [string]$testCertificate,
     [string]$resourceFilteringMethod,
     [string]$machineNames,
     [string]$scriptPath,
@@ -11,6 +15,9 @@ param (
 
 Write-Verbose "Entering script PowerShellOnTargetMachines.ps1" -Verbose
 Write-Verbose "environmentName = $environmentName" -Verbose
+Write-Verbose "adminUserName = $adminUserName" -Verbose
+Write-Verbose "protocol = $protocol" -Verbose
+Write-Verbose "testCertificate = $testCertificate" -Verbose
 Write-Verbose "resourceFilteringMethod = $resourceFilteringMethod" -Verbose
 Write-Verbose "machineNames = $machineNames" -Verbose
 Write-Verbose "scriptPath = $scriptPath" -Verbose
@@ -46,12 +53,67 @@ $ErrorActionPreference = 'Stop'
 $deploymentOperation = 'Deployment'
 
 $envOperationStatus = "Passed"
+$telemetrySet = $false
 
 # enabling detailed logging only when system.debug is true
 $enableDetailedLoggingString = $env:system_debug
 if ($enableDetailedLoggingString -ne "true")
 {
     $enableDetailedLoggingString = "false"
+}
+
+# Telemetry
+
+$telemetryCodes = 
+@{
+  "PREREQ_NoWinRMHTTP_Port" = "PREREQ001";
+  "PREREQ_NoWinRMHTTPSPort" = "PREREQ002";
+  "PREREQ_NoResources" = "PREREQ003";
+  "PREREQ_NoOutputVariableForSelectActionInAzureRG" = "PREREQ004";
+  "UNKNOWNPREDEP_Error" = "UNKNOWNPREDEP001";
+  "DEPLOYMENT_Failed" = "DEP001";
+  "AZUREPLATFORM_BlobUploadFailed" = "AZUREPLATFORM_BlobUploadFailed";
+  "PREREQ_NoVMResources" = "PREREQ_NoVMResources";
+  "UNKNOWNDEP_Error" = "UNKNOWNDEP_Error";
+  "PREREQ_StorageAccountNotFound" = "PREREQ_StorageAccountNotFound";
+  "AZUREPLATFORM_UnknownGetRMVMError" = "AZUREPLATFORM_UnknownGetRMVMError";
+  "DEPLOYMENT_FetchPropertyFromMap" = "DEPLOYMENT_FetchPropertyFromMap";
+  "PREREQ_UnsupportedAzurePSVerion" = "PREREQ_UnsupportedAzurePSVerion";
+  "DEPLOYMENT_CSMDeploymentFailed" = "DEPLOYMENT_CSMDeploymentFailed";
+  "PREREQ_InvalidServiceConnectionType" = "PREREQ_InvalidServiceConnectionType";
+  "PREREQ_AzureRMModuleNotFound" = "PREREQ_AzureRMModuleNotFound";
+  "PREREQ_InvalidFilePath" = "PREREQ_InvalidFilePath";
+  "DEPLOYMENT_PerformActionFailed" = "DEPLOYMENT_PerformActionFailed"
+ }
+
+function Write-Telemetry
+{
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory=$True,Position=1)]
+    [string]$codeKey,
+
+    [Parameter(Mandatory=$True,Position=2)]
+    [string]$taskId
+    )
+  
+  if($telemetrySet)
+  {
+    return
+  }
+
+  $code = $telemetryCodes[$codeKey]
+  $telemetryString = "##vso[task.logissue type=error;code=" + $code + ";TaskId=" + $taskId + ";]"
+  Write-Host $telemetryString
+  $telemetrySet = $true
+}
+
+function Write-TaskSpecificTelemetry
+{
+    param(
+      [string]$codeKey
+      )
+    Write-Telemetry "$codeKey" "3B5693D4-5777-4FEE-862A-BD2B7A374C68"
 }
 
 function ThrowError
@@ -76,16 +138,42 @@ function Get-ResourceWinRmConfig
     $winrmPortToUse = ''
     $protocolToUse = ''
 
-    Write-Verbose "Starting Get-Environment cmdlet call on environment name: $environmentName" -Verbose
-    $environment = Get-Environment -environmentName $environmentName -Connection $connection
-    Write-Verbose "Completed Get-Environment cmdlet call on environment name: $environmentName" -Verbose
 
-    if($environment.Provider -ne $null)      #  For standerd environment provider will be null
+    if($protocol -eq "HTTPS")
+    {
+        $protocolToUse = $useHttpsProtocolOption
+    
+        Write-Verbose "Starting Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceWinRMHttpsPortKeyName" -Verbose
+        $winrmPortToUse = Get-EnvironmentProperty -Environment $environment -Key $resourceWinRMHttpsPortKeyName -ResourceId $resourceId
+        Write-Verbose "Completed Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId (Name : $resourceName) and key: $resourceWinRMHttpsPortKeyName" -Verbose
+    
+        if([string]::IsNullOrWhiteSpace($winrmPortToUse))
+        {
+            Write-TaskSpecificTelemetry "PREREQ_NoWinRMHTTPSPort"
+            throw(Get-LocalizedString -Key "{0} port was not provided for resource '{1}'" -ArgumentList "WinRM HTTPS", $resourceName)
+        }
+    }
+    elseif($protocol -eq "HTTP")
+    {
+        $protocolToUse = $useHttpProtocolOption
+        
+        Write-Verbose "Starting Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceWinRMHttpPortKeyName" -Verbose
+        $winrmPortToUse = Get-EnvironmentProperty -Environment $environment -Key $resourceWinRMHttpPortKeyName -ResourceId $resourceId
+        Write-Verbose "Completed Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceWinRMHttpPortKeyName" -Verbose
+    
+        if([string]::IsNullOrWhiteSpace($winrmPortToUse))
+        {
+            Write-TaskSpecificTelemetry "PREREQ_NoWinRMHTTPPort"
+            throw(Get-LocalizedString -Key "{0} port was not provided for resource '{1}'" -ArgumentList "WinRM HTTP", $resourceName)
+        }
+    }
+
+    elseif($environment.Provider -ne $null)      #  For standerd environment provider will be null
     {
         Write-Verbose "`t Environment is not standerd environment. Https port has higher precedence" -Verbose
 
         Write-Verbose "Starting Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceWinRMHttpsPortKeyName" -Verbose
-        $winrmHttpsPort = Get-EnvironmentProperty -EnvironmentName $environmentName -Key $resourceWinRMHttpsPortKeyName -Connection $connection -ResourceId $resourceId
+        $winrmHttpsPort = Get-EnvironmentProperty -Environment $environment -Key $resourceWinRMHttpsPortKeyName -ResourceId $resourceId
         Write-Verbose "Completed Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId (Name : $resourceName) and key: $resourceWinRMHttpsPortKeyName" -Verbose
 
         if ([string]::IsNullOrEmpty($winrmHttpsPort))
@@ -93,11 +181,12 @@ function Get-ResourceWinRmConfig
                Write-Verbose "`t Resource: $resourceName does not have any winrm https port defined, checking for winrm http port" -Verbose
 
                Write-Verbose "Starting Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceWinRMHttpPortKeyName" -Verbose
-               $winrmHttpPort = Get-EnvironmentProperty -EnvironmentName $environmentName -Key $resourceWinRMHttpPortKeyName -Connection $connection -ResourceId $resourceId
+               $winrmHttpPort = Get-EnvironmentProperty -Environment $environment -Key $resourceWinRMHttpPortKeyName -ResourceId $resourceId
                Write-Verbose "Completed Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceWinRMHttpPortKeyName" -Verbose
 
                if ([string]::IsNullOrEmpty($winrmHttpPort))
                {
+                   Write-TaskSpecificTelemetry "PREREQ_NoWinRMHTTPPort"
                    throw(Get-LocalizedString -Key "Resource: '{0}' does not have WinRM service configured. Configure WinRM service on the Azure VM Resources. Refer for more details '{1}'" -ArgumentList $resourceName, "http://aka.ms/azuresetup" )
                }
                else
@@ -119,7 +208,7 @@ function Get-ResourceWinRmConfig
         Write-Verbose "`t Environment is standerd environment. Http port has higher precedence" -Verbose
 
         Write-Verbose "Starting Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceWinRMHttpPortKeyName" -Verbose
-        $winrmHttpPort = Get-EnvironmentProperty -EnvironmentName $environmentName -Key $resourceWinRMHttpPortKeyName -Connection $connection -ResourceId $resourceId
+        $winrmHttpPort = Get-EnvironmentProperty -Environment $environment -Key $resourceWinRMHttpPortKeyName -ResourceId $resourceId
         Write-Verbose "Completed Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceWinRMHttpPortKeyName" -Verbose
 
         if ([string]::IsNullOrEmpty($winrmHttpPort))
@@ -127,11 +216,12 @@ function Get-ResourceWinRmConfig
                Write-Verbose "`t Resource: $resourceName does not have any winrm http port defined, checking for winrm https port" -Verbose
 
                Write-Verbose "Starting Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceWinRMHttpsPortKeyName" -Verbose
-               $winrmHttpsPort = Get-EnvironmentProperty -EnvironmentName $environmentName -Key $resourceWinRMHttpsPortKeyName -Connection $connection -ResourceId $resourceId
+               $winrmHttpsPort = Get-EnvironmentProperty -Environment $environment -Key $resourceWinRMHttpsPortKeyName -ResourceId $resourceId
                Write-Verbose "Completed Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceWinRMHttpsPortKeyName" -Verbose
 
                if ([string]::IsNullOrEmpty($winrmHttpsPort))
                {
+                   Write-TaskSpecificTelemetry "PREREQ_NoWinRMHTTPSPort"
                    throw(Get-LocalizedString -Key "Resource: '{0}' does not have WinRM service configured. Configure WinRM service on the Azure VM Resources. Refer for more details '{1}'" -ArgumentList $resourceName, "http://aka.ms/azuresetup" )
                }
                else
@@ -161,8 +251,7 @@ function Get-SkipCACheckOption
     [CmdletBinding()]
     Param
     (
-        [string]$environmentName,
-        [Microsoft.VisualStudio.Services.Client.VssConnection]$connection
+        [string]$environmentName
     )
 
     $skipCACheckOption = $doNotSkipCACheckOption
@@ -170,7 +259,7 @@ function Get-SkipCACheckOption
 
     # get skipCACheck option from environment
     Write-Verbose "Starting Get-EnvironmentProperty cmdlet call on environment name: $environmentName with key: $skipCACheckKeyName" -Verbose
-    $skipCACheckBool = Get-EnvironmentProperty -EnvironmentName $environmentName -Key $skipCACheckKeyName -Connection $connection
+    $skipCACheckBool = Get-EnvironmentProperty -Environment $environment -Key $skipCACheckKeyName
     Write-Verbose "Completed Get-EnvironmentProperty cmdlet call on environment name: $environmentName with key: $skipCACheckKeyName" -Verbose
 
     if ($skipCACheckBool -eq "true")
@@ -190,7 +279,7 @@ function Get-ResourceConnectionDetails
     $resourceId = $resource.Id
 
     Write-Verbose "Starting Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceFQDNKeyName" -Verbose
-    $fqdn = Get-EnvironmentProperty -EnvironmentName $environmentName -Key $resourceFQDNKeyName -Connection $connection -ResourceId $resourceId
+    $fqdn = Get-EnvironmentProperty -Environment $environment -Key $resourceFQDNKeyName -ResourceId $resourceId
     Write-Verbose "Completed Get-EnvironmentProperty cmdlet call on environment name: $environmentName with resource id: $resourceId(Name : $resourceName) and key: $resourceFQDNKeyName" -Verbose
 
     $winrmconfig = Get-ResourceWinRmConfig -resourceName $resourceName -resourceId $resourceId
@@ -207,7 +296,7 @@ function Get-ResourcesProperties
 {
     param([object]$resources)
 
-    $skipCACheckOption = Get-SkipCACheckOption -environmentName $environmentName -connection $connection
+    $skipCACheckOption = Get-SkipCACheckOption -environmentName $environmentName
     [hashtable]$resourcesPropertyBag = @{}
 
     foreach ($resource in $resources)
@@ -223,71 +312,33 @@ function Get-ResourcesProperties
     return $resourcesPropertyBag
 }
 
-function Get-WellFormedTagsList
+try
 {
-    [CmdletBinding()]
-    Param
-    (
-        [string]$tagsListString
-    )
+    $connection = Get-VssConnection -TaskContext $distributedTaskContext
 
-    if([string]::IsNullOrWhiteSpace($tagsListString))
+    Write-Verbose "Starting Register-Environment cmdlet call for environment : $environmentName with filter $machineFilter" -Verbose
+    $environment = Register-Environment -EnvironmentName $environmentName -EnvironmentSpecification $environmentName -UserName $adminUserName -Password $adminPassword -WinRmProtocol $protocol -TestCertificate ($testCertificate -eq "true") -Connection $connection -TaskContext $distributedTaskContext -ResourceFilter $machineFilter
+    Write-Verbose "Completed Register-Environment cmdlet call for environment : $environmentName" -Verbose
+
+    Write-Verbose "Starting Get-EnvironmentResources cmdlet call on environment name: $environmentName" -Verbose
+    $resources = Get-EnvironmentResources -Environment $environment
+    if ($resources.Count -eq 0)
     {
-        return $null
+        Write-TaskSpecificTelemetry "PREREQ_NoResources"
+        throw (Get-LocalizedString -Key "No machine exists under environment: '{0}' for deployment" -ArgumentList $environmentName)
     }
 
-    $tagsArray = $tagsListString.Split(';')
-    $tagList = New-Object 'System.Collections.Generic.List[Tuple[string,string]]'
-    foreach($tag in $tagsArray)
+    $resourcesPropertyBag = Get-ResourcesProperties -resources $resources
+}
+catch
+{
+    if(-not $telemetrySet)
     {
-        if([string]::IsNullOrWhiteSpace($tag)) {continue}
-        $tagKeyValue = $tag.Split(':')
-        if($tagKeyValue.Length -ne 2)
-        {
-            throw (Get-LocalizedString -Key 'Please have the tags in this format Role:Web,Db;Tag2:TagValue2;Tag3:TagValue3')
-        }
-
-        if([string]::IsNullOrWhiteSpace($tagKeyValue[0]) -or [string]::IsNullOrWhiteSpace($tagKeyValue[1]))
-        {
-            throw (Get-LocalizedString -Key 'Please have the tags in this format Role:Web,Db;Tag2:TagValue2;Tag3:TagValue3')
-        }
-
-        $tagTuple = New-Object "System.Tuple[string,string]" ($tagKeyValue[0].Trim(), $tagKeyValue[1].Trim())
-        $tagList.Add($tagTuple) | Out-Null
+        Write-TaskSpecificTelemetry "UNKNOWNPREDEP_Error"
     }
 
-    $tagList = [System.Collections.Generic.IEnumerable[Tuple[string,string]]]$tagList
-    return ,$tagList
+    throw
 }
-
-$connection = Get-VssConnection -TaskContext $distributedTaskContext
-
-if($resourceFilteringMethod -eq "tags")
-{
-    $wellFormedTagsList = Get-WellFormedTagsList -tagsListString $machineFilter
-
-    Write-Verbose "Starting Get-EnvironmentResources cmdlet call on environment name: $environmentName with tag filter: $wellFormedTagsList" -Verbose
-    $resources = Get-EnvironmentResources -EnvironmentName $environmentName -TagFilter $wellFormedTagsList -Connection $connection
-    Write-Verbose "Completed Get-EnvironmentResources cmdlet call for environment name: $environmentName with tag filter" -Verbose
-}
-else
-{
-    Write-Verbose "Starting Get-EnvironmentResources cmdlet call on environment name: $environmentName with machine filter: $machineFilter" -Verbose
-    $resources = Get-EnvironmentResources -EnvironmentName $environmentName -ResourceFilter $machineFilter -Connection $connection
-    Write-Verbose "Completed Get-EnvironmentResources cmdlet call for environment name: $environmentName with machine filter" -Verbose
-}
-
-if ($resources.Count -eq 0)
-{
-    throw (Get-LocalizedString -Key "No machine exists under environment: '{0}' for deployment" -ArgumentList $environmentName)
-}
-
-Write-Verbose "Starting Invoke-EnvironmentOperation cmdlet call on environment name: $environmentName with operation name: $deploymentOperation" -Verbose
-$envOperationId = Invoke-EnvironmentOperation -EnvironmentName $environmentName -OperationName $deploymentOperation -Connection $connection
-Write-Verbose "Completed Invoke-EnvironmentOperation cmdlet call on environment name: $environmentName with operation name: $deploymentOperation" -Verbose
-Write-Verbose "EnvironmentOperationId = $envOperationId" -Verbose
-
-$resourcesPropertyBag = Get-ResourcesProperties -resources $resources
 
 if($runPowershellInParallel -eq "false" -or  ( $resources.Count -eq 1 ) )
 {
@@ -306,10 +357,7 @@ if($runPowershellInParallel -eq "false" -or  ( $resources.Count -eq 1 ) )
 
         if ($status -ne "Passed")
         {
-            Write-Verbose "Starting Complete-EnvironmentOperation cmdlet call on environment name: $environmentName with environment operationId: $envOperationId and status: Failed" -Verbose
-            Complete-EnvironmentOperation -EnvironmentName $environmentName -EnvironmentOperationId $envOperationId -Status "Failed" -Connection $connection
-            Write-Verbose "Completed Complete-EnvironmentOperation cmdlet call on environment name: $environmentName with environment operationId: $envOperationId and status: Failed" -Verbose
-
+            Write-TaskSpecificTelemetry "DEPLOYMENT_Failed"
             Write-Verbose $deploymentResponse.Error.ToString() -Verbose
             $errorMessage =  $deploymentResponse.Error.Message
             ThrowError -errorMessage $errorMessage
@@ -360,12 +408,9 @@ else
     }
 }
 
-Write-Verbose "Starting Complete-EnvironmentOperation cmdlet call on environment name: $environmentName with environment operationId: $envOperationId and status: $envOperationStatus" -Verbose
-Complete-EnvironmentOperation -EnvironmentName $environmentName -EnvironmentOperationId $envOperationId -Status $envOperationStatus -Connection $connection -ErrorAction Stop
-Write-Verbose "Completed Complete-EnvironmentOperation cmdlet call on environment name: $environmentName with environment operationId: $envOperationId and status: $envOperationStatus" -Verbose
-
 if($envOperationStatus -ne "Passed")
 {
+    Write-TaskSpecificTelemetry "DEPLOYMENT_Failed"
     $errorMessage = (Get-LocalizedString -Key 'Deployment on one or more machines failed.')
     ThrowError -errorMessage $errorMessage
 }

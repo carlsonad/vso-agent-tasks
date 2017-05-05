@@ -1,6 +1,3 @@
-// *******************************************************
-// GENERATED FILE - DO NOT EDIT DIRECTLY
-// *******************************************************
 {
   "id": "89A3A82D-4B3E-4A09-8D40-A793849DC94F",
   "name": "IISWebAppDeployment",
@@ -17,11 +14,16 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 2
+    "Patch": 13
   },
   "demands": [],
-  "minimumAgentVersion": "1.88.0",
+  "minimumAgentVersion": "1.91.0",
   "groups": [
+    {
+      "name": "deployment",
+      "displayName": "ms-resource:loc.group.displayName.deployment",
+      "isExpanded": true
+    },
     {
       "name": "website",
       "displayName": "ms-resource:loc.group.displayName.website",
@@ -41,37 +43,55 @@
   "inputs": [
     {
       "name": "EnvironmentName",
-      "type": "pickList",
+      "type": "multiLine",
       "label": "ms-resource:loc.input.label.EnvironmentName",
       "defaultValue": "",
       "required": true,
       "helpMarkDown": "ms-resource:loc.input.help.EnvironmentName"
     },
     {
-      "name": "ResourceFilteringMethod",
-      "type": "radio",
-      "label": "ms-resource:loc.input.label.ResourceFilteringMethod",
+      "name": "AdminUserName",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.AdminUserName",
+      "defaultValue": "",
       "required": false,
-      "defaultValue": "machineNames",
-      "options": {
-        "machineNames": "Machine Names",
-        "tags": "Tags"
-      },
-      "helpMarkDown": "ms-resource:loc.input.help.ResourceFilteringMethod"
+      "helpMarkDown": "ms-resource:loc.input.help.AdminUserName"
     },
     {
-      "name": "MachineFilter",
+      "name": "AdminPassword",
       "type": "string",
-      "label": "ms-resource:loc.input.label.MachineFilter",
+      "label": "ms-resource:loc.input.label.AdminPassword",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.AdminPassword"
+    },
+    {
+      "name": "WinRMProtocol",
+      "type": "radio",
+      "label": "ms-resource:loc.input.label.WinRMProtocol",
       "required": false,
       "defaultValue": "",
-      "helpMarkDown": "ms-resource:loc.input.help.MachineFilter"
+      "options": {
+        "Http": "HTTP",
+        "Https": "HTTPS"
+      },
+      "helpMarkDown": "ms-resource:loc.input.help.WinRMProtocol"
+    },
+    {
+      "name": "TestCertificate",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.TestCertificate",
+      "defaultValue": "true",
+      "visibleRule": "WinRMProtocol = Https",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.TestCertificate"
     },
     {
       "name": "WebDeployPackage",
       "type": "string",
       "label": "ms-resource:loc.input.label.WebDeployPackage",
       "required": true,
+      "groupName": "deployment",
       "defaultValue": "",
       "helpMarkDown": "ms-resource:loc.input.help.WebDeployPackage"
     },
@@ -80,14 +100,16 @@
       "type": "string",
       "label": "ms-resource:loc.input.label.WebDeployParamFile",
       "required": false,
+      "groupName": "deployment",
       "defaultValue": "",
       "helpMarkDown": "ms-resource:loc.input.help.WebDeployParamFile"
     },
     {
       "name": "OverRideParams",
-      "type": "string",
+      "type": "multiLine",
       "label": "ms-resource:loc.input.label.OverRideParams",
       "required": false,
+      "groupName": "deployment",
       "defaultValue": "",
       "helpMarkDown": "ms-resource:loc.input.help.OverRideParams"
     },
@@ -358,14 +380,28 @@
       "required": false,
       "groupName": "advanced",
       "helpMarkDown": "ms-resource:loc.input.help.DeployInParallel"
-    }
-  ],
-  "sourceDefinitions": [
+    },
     {
-      "target": "EnvironmentName",
-      "endpoint": "/$(system.teamProject)/_apis/vslabs/environments",
-      "selector": "jsonpath:$.value[*].name",
-      "authKey": "tfs:DevTestLabs"
+      "name": "ResourceFilteringMethod",
+      "type": "radio",
+      "label": "ms-resource:loc.input.label.ResourceFilteringMethod",
+      "required": false,
+      "defaultValue": "machineNames",
+      "options": {
+        "machineNames": "Machine Names",
+        "tags": "Tags"
+      },
+      "groupName": "advanced",
+      "helpMarkDown": "ms-resource:loc.input.help.ResourceFilteringMethod"
+    },
+    {
+      "name": "MachineFilter",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.MachineFilter",
+      "required": false,
+      "defaultValue": "",
+      "groupName": "advanced",
+      "helpMarkDown": "ms-resource:loc.input.help.MachineFilter"
     }
   ],
   "instanceNameFormat": "ms-resource:loc.instanceNameFormat",

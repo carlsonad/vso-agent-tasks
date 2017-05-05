@@ -2,6 +2,7 @@
     [string]$WebDeployPackage,
     [string]$WebDeployParamFile,
     [string]$OverRideParams,
+    [string]$CreateWebSite,
     [string]$WebSiteName,
     [string]$WebSitePhysicalPath,
     [string]$WebSitePhysicalPathAuth,
@@ -15,6 +16,7 @@
     [string]$HostName,
     [string]$ServerNameIndication,
     [string]$SslCertThumbPrint,
+    [string]$createAppPool,
     [string]$AppPoolName,
     [string]$DotNetVersion,
     [string]$PipeLineMode,
@@ -163,6 +165,7 @@ function Get-MsDeployCmdArgs
     $webDeployPackage = $webDeployPackage.Trim('"')
     $webDeployParamFile = $webDeployParamFile.Trim('"')
     $overRideParams = $overRideParams.Trim('"').Replace('''', '"')
+    $setParams = $overRideParams.Split([System.Environment]::NewLine, [System.StringSplitOptions]::RemoveEmptyEntries)
     
     if(-not ( Test-Path -Path $webDeployPackage))
     {
@@ -180,10 +183,14 @@ function Get-MsDeployCmdArgs
 
         $msDeployCmdArgs = [string]::Format(' -setParamFile="{0}"', $webDeployParamFile)
     }
-
-    if(-not (IsInputNullOrEmpty -str $overRideParams))
+    
+    foreach($setParam in $setParams)
     {
-        $msDeployCmdArgs = [string]::Format('{0} -setParam:{1}', $msDeployCmdArgs, $overRideParams)
+        $setParam = $setParam.Trim()
+        if(-not [string]::IsNullOrEmpty($setParam))
+        {
+            $msDeployCmdArgs = [string]::Format('{0} -setParam:{1}', $msDeployCmdArgs, $setParam)
+        }
     }
     
     $msDeployCmdArgs = [string]::Format(' -verb:sync -source:package="{0}" {1} -dest:auto -verbose -retryAttempts:3 -retryInterval:3000', $webDeployPackage, $msDeployCmdArgs)
@@ -194,7 +201,7 @@ function Does-WebSiteExists
 {
     param([string] $siteName)
 
-    $appCmdPath, $iisVerision = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
+    $appCmdPath, $iisVersion = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
     $appCmdArgs = [string]::Format(' list site /name:{0}',$siteName)
     $command = "`"$appCmdPath`" $appCmdArgs"
     Write-Verbose "Checking webSite exists. Running Command : $command"
@@ -207,7 +214,7 @@ function Does-WebSiteExists
         return $true
     }
     
-    Write-Verbose "WebSite does not exist" -Verbose
+    Write-Verbose "Website ($siteName) does not exist" -Verbose
     return $false
 }
 
@@ -222,7 +229,7 @@ function Does-BindingExists
         [string]$assignDupBindings
     )
     
-    $appCmdPath, $iisVerision = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
+    $appCmdPath, $iisVersion = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
     $appCmdArgs = [string]::Format(' list sites')
     $command = "`"$appCmdPath`" $appCmdArgs"
 
@@ -268,7 +275,7 @@ function Does-AppPoolExists
         [string]$appPoolName
     )
 
-    $appCmdPath, $iisVerision = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
+    $appCmdPath, $iisVersion = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
     $appCmdArgs = [string]::Format(' list apppool /name:{0}',$appPoolName)
     $command = "`"$appCmdPath`" $appCmdArgs"
 
@@ -360,7 +367,7 @@ function Add-SslCert
         $addCertCmd = [string]::Format("netsh http add sslcert ipport=0.0.0.0:{0} certhash={1} appid={{{2}}}", $port, $certhash, [System.Guid]::NewGuid().toString())
     }
 
-    $isItSameCert = $result.Get(5).Contains([string]::Format("{0}", $certhash))
+    $isItSameCert = $result.Get(5).ToLower().Contains([string]::Format("{0}", $certhash.ToLower()))
 
     if($isItSameBinding -and $isItSameCert)
     {
@@ -395,7 +402,7 @@ function Create-WebSite
     [string]$physicalPath
     )
 
-    $appCmdPath, $iisVerision = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
+    $appCmdPath, $iisVersion = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
     $appCmdArgs = [string]::Format(' add site /name:{0} /physicalPath:{1}',$siteName, $physicalPath)
     $command = "`"$appCmdPath`" $appCmdArgs"       
     
@@ -409,7 +416,7 @@ function Create-AppPool
         [string]$appPoolName
     )
 
-    $appCmdPath, $iisVerision = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
+    $appCmdPath, $iisVersion = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
     $appCmdArgs = [string]::Format(' add apppool /name:{0}', $appPoolName)
     $command = "`"$appCmdPath`" $appCmdArgs"
     
@@ -424,7 +431,7 @@ function Run-AdditionalCommands
     )
 
     $appCmdCommands = $additionalCommands.Trim('"').Split([System.Environment]::NewLine, [System.StringSplitOptions]::RemoveEmptyEntries)
-    $appCmdPath, $iisVerision = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
+    $appCmdPath, $iisVersion = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
 
     foreach($appCmdCommand in $appCmdCommands)
     {
@@ -489,7 +496,7 @@ function Update-WebSite
         $appCmdArgs = [string]::Format("{0} /+bindings.[protocol='{1}',bindingInformation='{2}:{3}:{4}']", $appCmdArgs, $protocol, $ipAddress, $port, $hostname)
     }
         
-    $appCmdPath, $iisVerision = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
+    $appCmdPath, $iisVersion = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
     $command = "`"$appCmdPath`" $appCmdArgs"
     
     Write-Verbose "Updating WebSite Properties. Running Command : $command" -Verbose
@@ -529,7 +536,7 @@ function Update-AppPool
         $appCmdArgs = [string]::Format('{0} /[name=''{1}''].processModel.identityType:{2}', $appCmdArgs, $appPoolName, $identity)
     }    
         
-    $appCmdPath, $iisVerision = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
+    $appCmdPath, $iisVersion = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
     $command = "`"$appCmdPath`" $appCmdArgs"
     
     Write-Verbose "Updating Application Pool Properties. Running Command : $command" -Verbose
@@ -568,7 +575,7 @@ function Create-And-Update-AppPool
 {
     param(
         [string]$appPoolName,
-        [string]$clrVerion,
+        [string]$clrVersion,
         [string]$pipeLineMode,
         [string]$identity,
         [string]$userName,
@@ -582,19 +589,19 @@ function Create-And-Update-AppPool
         Create-AppPool -appPoolName $appPoolName
     }
 
-    Update-AppPool -appPoolName $appPoolName -clrVersion $clrVerion -pipeLineMode $pipeLineMode -identity $identity -userName $userName -password $password
+    Update-AppPool -appPoolName $appPoolName -clrVersion $clrVersion -pipeLineMode $pipeLineMode -identity $identity -userName $userName -password $password
 }
 
 function Execute-Main
 {
     Write-Verbose "Entering Execute-Main function" -Verbose
 
-    if(-not (IsInputNullOrEmpty -str $AppPoolName))
+    if($createAppPool -ieq "true")
     {
-        Create-And-Update-AppPool -appPoolName $AppPoolName -clrVerion $DotNetVersion -pipeLineMode $PipeLineMode -identity $AppPoolIdentity -userName $AppPoolUsername -password $AppPoolPassword
+        Create-And-Update-AppPool -appPoolName $AppPoolName -clrVersion $DotNetVersion -pipeLineMode $PipeLineMode -identity $AppPoolIdentity -userName $AppPoolUsername -password $AppPoolPassword
     }
 
-    if(-not (IsInputNullOrEmpty -str $WebSiteName))
+    if($CreateWebSite -ieq "true")
     {
         Create-And-Update-WebSite -siteName $WebSiteName -appPoolName $AppPoolName -physicalPath $WebSitePhysicalPath -authType $WebSitePhysicalPathAuth -userName $WebSiteAuthUserName `
          -password $WebSiteAuthUserPassword -addBinding $AddBinding -protocol $Protocol -ipAddress $IpAddress -port $Port -hostname $HostName -assignDupBindings $AssignDuplicateBinding
@@ -604,6 +611,14 @@ function Execute-Main
             $appCmdPath, $iisVersion = Get-AppCmdLocation -regKeyPath $AppCmdRegKey
             Add-SslCert -port $Port -certhash $SslCertThumbPrint -hostname $HostName -sni $ServerNameIndication -iisVersion $iisVersion
             Enable-SNI -siteName $WebSiteName -sni $ServerNameIndication -ipAddress $IpAddress -port $Port -hostname $HostName
+        }
+    }
+    else
+    {
+        $doesWebSiteExists = Does-WebSiteExists -siteName $WebSiteName
+        if (-not $doesWebSiteExists)  
+        {
+            throw "The website '$WebSiteName' does not exist and you did not request to create it - deployment cannot continue."  
         }
     }
 

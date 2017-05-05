@@ -42,7 +42,8 @@ function ConfigureJDK
 function PublishTestResults
 {
 	param([string]$publishJUnitResults,
-		  [string]$testResultsFiles)
+		  [string]$testResultsFiles,
+		  [string]$testRunTitle)
 
 	$publishJUnitResultsFromAntBuild = Convert-String $publishJUnitResults Boolean
 
@@ -57,7 +58,14 @@ function PublishTestResults
 		else
 		{
 			Write-Verbose "Calling Publish-TestResults"
-			Publish-TestResults -TestRunner "JUnit" -TestResultsFiles $matchingTestResultsFiles -Context $distributedTaskContext
+			if([string]::IsNullOrWhiteSpace($testRunTitle))
+			{
+				Publish-TestResults -TestRunner "JUnit" -TestResultsFiles $matchingTestResultsFiles -Context $distributedTaskContext
+			}
+			else
+			{
+				Publish-TestResults -TestRunner "JUnit" -TestResultsFiles $matchingTestResultsFiles -Context $distributedTaskContext -RunTitle $testRunTitle
+			}
 		}    
 	}
 	else
@@ -75,7 +83,8 @@ function RunSonarQubeAnalysis
 		  [string]$sqDbUsername,
 		  [string]$sqDbPassword, 
 		  [string]$userOptions,
-		  [string]$mavenPOMFile)
+		  [string]$mavenPOMFile,
+		  [string]$execFileJacoco)
 
 	# SonarQube Analysis - there is a known issue with the SonarQube Maven plugin that the sonar:sonar goal should be run independently
 	$sqAnalysisEnabledBool = Convert-String $sqAnalysisEnabled Boolean
@@ -96,10 +105,15 @@ function RunSonarQubeAnalysis
 			# The platform may cache the db details values so we force them to be empty
 			$sqArguments = CreateSonarQubeArgs $sqServiceEndpoint.Url $sqServiceEndpoint.Authorization.Parameters.UserName $sqServiceEndpoint.Authorization.Parameters.Password "" "" ""
 		}
-
+		
 		$sqArguments = $userOptions + " " + $sqArguments
 		Write-Verbose "Running Maven with goal sonar:sonar and options: $sqArguments"
-
+		
+		if($execFileJacoco)
+		{
+			$sqArguments = $sqArguments + " -Dsonar.jacoco.reportPath=" + (EscapeArg($execFileJacoco)) 
+		}
+		
 		Invoke-Maven -MavenPomFile $mavenPOMFile -Options $sqArguments -Goals "sonar:sonar"
 	 }
 }
@@ -143,35 +157,159 @@ function CreateSonarQubeArgs
     # To avoid this, force it to ignore the Append return value using [void]
 
     if (![String]::IsNullOrWhiteSpace($serverUrl))
-    {    
-        [void]$sb.Append("-Dsonar.host.url=""$serverUrl""")
+    {            
+		[void]$sb.Append("-Dsonar.host.url=" + (EscapeArg($serverUrl))) 
     }
 
     if (![String]::IsNullOrWhiteSpace($serverUsername))
     {
-        [void]$sb.Append(" -Dsonar.login=""$serverUsername""")
+        [void]$sb.Append(" -Dsonar.login=" + (EscapeArg($serverUsername))) 
     }
 
     if (![String]::IsNullOrWhiteSpace($serverPassword))
     {
-        [void]$sb.Append(" -Dsonar.password=""$serverPassword""")
+        [void]$sb.Append(" -Dsonar.password=" + (EscapeArg($serverPassword))) 
     }
 
     if (![String]::IsNullOrWhiteSpace($dbUrl))
     {
-        [void]$sb.Append(" -Dsonar.jdbc.url=""$dbUrl""")
+        [void]$sb.Append(" -Dsonar.jdbc.url=" + (EscapeArg($dbUrl))) 
     }
 
     if (![String]::IsNullOrWhiteSpace($dbUsername))
     {
-        [void]$sb.Append(" -Dsonar.jdbc.username=""$dbUsername""")
+        [void]$sb.Append(" -Dsonar.jdbc.username=" + (EscapeArg($dbUsername))) 
     }
 
     if (![String]::IsNullOrWhiteSpace($dbPassword))
     {
-        [void]$sb.Append(" -Dsonar.jdbc.password=""$dbPassword""")
+        [void]$sb.Append(" -Dsonar.jdbc.password=" + (EscapeArg($dbPassword))) 
     }
 
     return $sb.ToString();
 }
 
+
+
+function PublishCodeCoverageJacoco
+{
+    param(
+          [Boolean]$isCoverageEnabled,
+	      [string]$mavenPOMFile,
+		  [string]$CCReportTask,
+		  [string]$summaryFile,
+		  [string]$reportDirectory,
+		  [string]$codeCoverageTool,
+		  [string]$reportPOMFile)
+	
+     # check if code coverage has been enabled
+    if($isCoverageEnabled)
+    {
+		# run report code coverage task which generates code coverage reports.
+		$reportsGenerationFailed = $false
+		Write-Verbose "Collecting code coverage reports" -Verbose
+		try
+		{
+			if(Test-Path $reportPOMFile)
+			{
+				#multi module project
+				Invoke-Maven -MavenPomFile $reportPOMFile -Goals "verify"
+			}
+			else
+			{
+				Invoke-Maven -MavenPomFile $mavenPOMFile -Goals $CCReportTask
+			}
+        }
+		catch
+		{
+			$reportsGenerationFailed = $true
+		}
+       
+       if(-not $reportsGenerationFailed -and (Test-Path $summaryFile))
+       {
+    		Write-Verbose "Summary file = $summaryFile" -Verbose
+    		Write-Verbose "Report directory = $reportDirectory" -Verbose
+    		Write-Verbose "Calling Publish-CodeCoverage" -Verbose
+    		Publish-CodeCoverage -CodeCoverageTool $codeCoverageTool -SummaryFileLocation $summaryFile -ReportDirectory $reportDirectory -Context $distributedTaskContext    
+       }
+       else
+       {
+    		Write-Warning "No code coverage found to publish. There might be a build failure resulting in no code coverage or there might be no tests." -Verbose
+       }
+    }
+
+}
+
+function PublishCodeCoverageCobertura
+{
+    param(
+          [Boolean]$isCoverageEnabled,
+	      [string]$mavenPOMFile,
+		  [string]$summaryFile,
+		  [string]$reportDirectory,
+		  [string]$codeCoverageTool)
+	
+     # check if code coverage has been enabled
+    if($isCoverageEnabled)
+    {       
+       if(Test-Path $summaryFile)
+       {
+    		Write-Verbose "Summary file = $summaryFile" -Verbose
+    		Write-Verbose "Report directory = $reportDirectory" -Verbose
+    		Write-Verbose "Calling Publish-CodeCoverage" -Verbose
+    		Publish-CodeCoverage -CodeCoverageTool $codeCoverageTool -SummaryFileLocation $summaryFile -ReportDirectory $reportDirectory -Context $distributedTaskContext    
+       }
+       else
+       {
+    		Write-Warning "No code coverage found to publish. There might be a build failure resulting in no code coverage or there might be no tests." -Verbose
+       }
+    }
+
+}
+
+
+function EnableCodeCoverage
+{
+    param(
+          [Boolean]$isCoverageEnabled,
+	      [string]$mavenPOMFile,
+		  [string]$codeCoverageTool,
+		  [string]$classFilter,
+		  [string]$classFilesDirectories,
+	      [string]$srcDirectories,
+		  [string]$summaryFileName,
+		  [string]$reportDirectory,
+		  [string]$reportPOMFile)
+
+     
+     # check if code coverage has been enabled
+     if($isCoverageEnabled)
+     {
+		if(Test-Path $reportPOMFile)
+		{
+			# delete any previous reportPOMFile
+			rm $reportPOMFile -force | Out-Null
+		}
+		
+        # Enable code coverage in build file
+        Enable-CodeCoverage -BuildTool 'Maven' -BuildFile $mavenPOMFile -CodeCoverageTool $codeCoverageTool -ClassFilter $classFilter -ClassFilesDirectories $classFilesDirectories -SourceDirectories $srcDirectories -SummaryFile $summaryFileName -ReportDirectory $reportDirectory -ReportBuildFile $reportPOMFile -ErrorAction Stop
+        Write-Verbose "Code coverage is successfully enabled." -Verbose
+     }
+     else
+     {
+         Write-Verbose "Option to enable code coverage was not selected and is being skipped." -Verbose
+     }
+	 
+}
+
+# When passing arguments to a process, the quotes need to be doubled and   
+# the entire string needs to be placed inside quotes to avoid issues with spaces  
+function EscapeArg  
+{  
+    param([string]$argVal)  
+  
+    $argVal = $argVal.Replace('"', '""');  
+    $argVal = '"' + $argVal + '"';  
+  
+    return $argVal;  
+}  

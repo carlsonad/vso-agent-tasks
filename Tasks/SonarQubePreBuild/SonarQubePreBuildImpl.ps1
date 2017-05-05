@@ -1,4 +1,22 @@
 #
+# Store some parameters as context variables so that they can be picked by other tasks, mainly by the "end task"
+#
+function StoreParametersInTaskContext
+{    
+	param(
+		  [string]$hostUrl,
+		  [string]$bootstrapperPath,
+		  [string]$dahsboardUrl, 
+          [string]$breakBuild)
+	
+    SetTaskContextVariable "MSBuild.SonarQube.BootstrapperPath" $bootstrapperPath    
+    SetTaskContextVariable "MSBuild.SonarQube.HostUrl" $hostUrl   
+    SetTaskContextVariable "MSBuild.SonarQube.BreakBuild" $breakBuild    
+    SetTaskContextVariable "MSBuild.SonarQube.ProjectUri" $dahsboardUrl
+}
+
+
+#
 # Remarks: Some sensitive parameters cannot be stored on the agent between the 2 steps so 
 # we'll store them in the task context and pass them to the post-test step
 #
@@ -10,10 +28,10 @@ function StoreSensitiveParametersInTaskContext
 		  [string]$dbUsername,
 		  [string]$dbPassword)
 
-	SetTaskContextVariable "MsBuild.SonarQube.ServerUsername" $serverUsername
-	SetTaskContextVariable "MsBuild.SonarQube.ServerPassword" $serverPassword
-	SetTaskContextVariable "MsBuild.SonarQube.DbUsername" $dbUsername
-	SetTaskContextVariable "MsBuild.SonarQube.DbPassword" $dbPassword
+	SetTaskContextVariable "MSBuild.SonarQube.ServerUsername" $serverUsername
+	SetTaskContextVariable "MSBuild.SonarQube.ServerPassword" $serverPassword
+	SetTaskContextVariable "MSBuild.SonarQube.DbUsername" $dbUsername
+	SetTaskContextVariable "MSBuild.SonarQube.DbPassword" $dbPassword
 }
 
 function CreateCommandLineArgs
@@ -38,43 +56,43 @@ function CreateCommandLineArgs
     # To avoid this, ignore the Append return value using [void]
     [void]$sb.Append("begin");
 
-    [void]$sb.Append(" /k:""$projectKey"" /n:""$projectName"" /v:""$projectVersion""");
+    [void]$sb.Append(" /k:" + (EscapeArg($projectKey)) + " /n:" + (EscapeArg($projectName)) + " /v:" + (EscapeArg($projectVersion)));
 
     if ([String]::IsNullOrWhiteSpace($serverUrl))
     {   
 		throw "Please setup a generic endpoint and specify the SonarQube Url as the Server Url" 
 	}
 
-	[void]$sb.Append(" /d:sonar.host.url=""$serverUrl""")
+	[void]$sb.Append(" /d:sonar.host.url=" + (EscapeArg($serverUrl))) 
 
     if (![String]::IsNullOrWhiteSpace($serverUsername))
     {
-        [void]$sb.Append(" /d:sonar.login=""$serverUsername""")
+        [void]$sb.Append(" /d:sonar.login=" + (EscapeArg($serverUsername))) 
     }
 
     if (![String]::IsNullOrWhiteSpace($serverPassword))
     {
-        [void]$sb.Append(" /d:sonar.password=""$serverPassword""")
+        [void]$sb.Append(" /d:sonar.password=" + (EscapeArg($serverPassword))) 
     }
 
     if (![String]::IsNullOrWhiteSpace($dbUrl))
     {
-        [void]$sb.Append(" /d:sonar.jdbc.url=""$dbUrl""")
+        [void]$sb.Append(" /d:sonar.jdbc.url=" + (EscapeArg($dbUrl))) 
     }
 
     if (![String]::IsNullOrWhiteSpace($dbUsername))
     {
-        [void]$sb.Append(" /d:sonar.jdbc.username=""$dbUsername""")
+        [void]$sb.Append(" /d:sonar.jdbc.username=" + (EscapeArg($dbUsername))) 
     }
 
     if (![String]::IsNullOrWhiteSpace($dbPassword))
     {
-        [void]$sb.Append(" /d:sonar.jdbc.password=""$dbPassword""")
+        [void]$sb.Append(" /d:sonar.jdbc.password=" + (EscapeArg($dbPassword))) 
     }
 
     if (![String]::IsNullOrWhiteSpace($additionalArguments))
     {
-        [void]$sb.Append(" " + $additionalArguments)
+        [void]$sb.Append(" " + $additionalArguments) # the user should take care of escaping the extra settings
     }
 
     if (IsFilePathSpecified $configFile)
@@ -84,41 +102,35 @@ function CreateCommandLineArgs
             throw "Could not find the specified configuration file: $configFile" 
         }
 
-        [void]$sb.Append(" /s:$configFile")
+        [void]$sb.Append(" /s:" + (EscapeArg($configFile))) 
     }
 
     return $sb.ToString();
 }
 
-function UpdateArgsForPullRequestAnalysis($cmdLineArgs, $serviceEndpoint)
-{
-    $prcaEnabled = GetTaskContextVariable "PullRequestSonarQubeCodeAnalysisEnabled"
-    if ($prcaEnabled -ieq "true")
+function UpdateArgsForPullRequestAnalysis($cmdLineArgs)
+{       
+    if (IsPrBuild)
     {
         if ($cmdLineArgs -and $cmdLineArgs.ToString().Contains("sonar.analysis.mode"))
         {
             throw "Error: sonar.analysis.mode seems to be set already. Please check the properties of SonarQube build tasks and try again."
         }
 
-        Write-Verbose "PullRequestSonarQubeCodeAnalysisEnabled is true, setting command line args for sonar-runner."
-        $sqServerVersion = GetSonarQubeServerVersion $serviceEndpoint.Url
+        Write-Verbose "Detected a PR build - running the SonarQube analysis in issues / incremental mode"
 
-        if (!$sqServerVersion)
-        {
-            #we want to fail the build step if SonarQube server version isn't fetched
-            throw "Error: Unable to fetch SonarQube server version. Please make sure SonarQube server is reachable at $($serviceEndpoint.Url)"
-        }
+        $sqServerVersion = GetSonarQubeServerVersion     
 
         Write-Verbose "SonarQube server version:$sqServerVersion"
 
         #strip out '-SNAPSHOT' if it is present in version (developer versions of SonarQube might return version in this format: 5.2-SNAPSHOT)
-        $sqServerVersion = $sqServerVersion.ToUpper().Replace("-SNAPSHOT", "")
+        $sqServerVersion = ([string]$sqServerVersion).split("-")[0]
 
         $sqVersion = New-Object -TypeName System.Version -ArgumentList $sqServerVersion
         $sqVersion5dot2 = New-Object -TypeName System.Version -ArgumentList "5.2"
 
         #For SQ version 5.2+ use issues mode, otherwise use incremental mode. Incremental mode is not supported in SQ 5.2+. -ge below calls the overloaded operator in System.Version class
-        if ($sqServerVersion -ge $sqVersion5dot2)
+        if ($sqVersion -ge $sqVersion5dot2)
         {
             $cmdLineArgs = $cmdLineArgs + " " + "/d:sonar.analysis.mode=issues" + " " + "/d:sonar.report.export.path=sonar-report.json"
         }
@@ -126,9 +138,6 @@ function UpdateArgsForPullRequestAnalysis($cmdLineArgs, $serviceEndpoint)
         {
             $cmdLineArgs = $cmdLineArgs + " " + "/d:sonar.analysis.mode=incremental"
         }
-
-		#use this variable in post-test task
-		SetTaskContextVariable "MsBuild.SonarQube.AnalysisModeIsIncremental" "true"
 	}
 
 	return $cmdLineArgs
@@ -159,79 +168,15 @@ function GetEndpointData
 
 ################# Helpers ######################
 
-# Set a variable in a property bag that is accessible by all steps
-# To retrieve the variable use $val = Get-Variable $distributedTaskContext "varName"
-function SetTaskContextVariable
-{
-    param([string][ValidateNotNullOrEmpty()]$varName, 
-          [string]$varValue)
-    
-    Write-Host "##vso[task.setvariable variable=$varName;]$varValue"
-}
-
-function GetTaskContextVariable()
-{
-	param([string][ValidateNotNullOrEmpty()]$varName)
-	return Get-TaskVariable -Context $distributedTaskContext -Name $varName
-}
-
-#
-# Helper that informs if a "filePath" has been specified. The platform will return the root of the repo / workspace if the user enters nothing.
-#
-function IsFilePathSpecified
-{
-     param([string]$path)
-
-     if ([String]::IsNullOrWhiteSpace($path))
-     {
-        return $false
-     }
-
-     return ![String]::Equals(
-                [System.IO.Path]::GetFullPath($path).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar),
-                [System.IO.Path]::GetFullPath($env:BUILD_SOURCESDIRECTORY).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar),
-                [StringComparison]::OrdinalIgnoreCase)
-}
-
-
-function GetVersionString($uri)
-{
-    $version = $null
-
-    Try
-    {
-        $version = Invoke-RestMethod -Uri $uri -Method Get
-    }
-    Catch [System.Net.WebException]
-    {
-        Write-Verbose "WebException while trying to invoke $uri. Exception msg:$($_.Exception.Message)"
-    }
-
-    return $version
-}
-
 #
 # Helper that returns the version number of the SonarQube server
 #
 function GetSonarQubeServerVersion()
-{
-    param([String][ValidateNotNullOrEmpty()]$serverUrl)
+{         
+    $command = {InvokeGetRestMethod "/api/server/version" }
+    $version = Retry $command -maxRetries 2 -retryDelay 1 -Verbose
+  
+    Write-Verbose "Returning SonarQube server version:$version"
 
-    Write-Host "Fetching SonarQube server version.."
-
-    $serverUri = New-Object -TypeName System.Uri -ArgumentList $serverUrl
-    $serverApiUri = New-Object -TypeName System.Uri -ArgumentList ($serverUri, "/api/server/version")
-
-    $sqVersion = GetVersionString $serverApiUri
-
-    if(!$sqVersion)
-    {
-        Write-Verbose "Trying to fetch SonarQube version number again.."
-        Start-Sleep -s 2
-
-        $sqVersion = GetVersionString $serverApiUri
-    }
-
-    Write-Verbose "Returning SonarQube server version:$sqVersion"
-    return $sqVersion
+    return $version
 }

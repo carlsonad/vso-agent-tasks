@@ -1,7 +1,11 @@
 param(
-    [string][Parameter(Mandatory=$true)]$ConnectedServiceName,
-    [string][Parameter(Mandatory=$true)]$action,
-    [string][Parameter(Mandatory=$true)]$resourceGroupName,
+    [string][Parameter(Mandatory=$true)]$connectedServiceNameSelector,
+    [string]$connectedServiceName,
+    [string]$connectedServiceNameClassic,
+    [string]$action,
+    [string]$actionClassic,
+    [string]$resourceGroupName,
+    [string]$cloudService,
     [string]$location,
     [string]$csmFile,
     [string]$csmParametersFile,
@@ -14,65 +18,114 @@ param(
     [string]$vmCreds,
     [string]$vmUserName,
     [string]$vmPassword,
-    [string]$skipCACheck
+    [string]$skipCACheck,
+    [string]$outputVariable,
+    [string]$enableDeploymentPrerequisitesForCreate,
+	[string]$enableDeploymentPrerequisitesForSelect
 )
 
-Write-Verbose "Starting Azure Resource Group Deployment Task" -Verbose
-
+Write-Verbose -Verbose "Starting Azure Resource Group Deployment Task"
+Write-Verbose -Verbose "ConnectedServiceNameSelector = $connectedServiceNameSelector"
 Write-Verbose -Verbose "ConnectedServiceName = $ConnectedServiceName"
+Write-Verbose -Verbose "ConnectedServiceNameClassic = $connectedServiceNameClassic"
 Write-Verbose -Verbose "Action = $action"
+Write-Verbose -Verbose "ActionClassic = $actionClassic"
 Write-Verbose -Verbose "ResourceGroupName = $resourceGroupName"
+Write-Verbose -Verbose "CloudService = $cloudService"
 Write-Verbose -Verbose "Location = $location"
-Write-Verbose -Verbose "OverrideParameters = $overrideParameters" 
+Write-Verbose -Verbose "OverrideParameters = $overrideParameters"
+Write-Verbose -Verbose "OutputVariable = $outputVariable"
+Write-Verbose -Verbose "enableDeploymentPrerequisitesForCreate = $enableDeploymentPrerequisitesForCreate"
+Write-Verbose -Verbose "enableDeploymentPrerequisitesForSelect = $enableDeploymentPrerequisitesForSelect"
 
-import-module Microsoft.TeamFoundation.DistributedTask.Task.Internal
-import-module Microsoft.TeamFoundation.DistributedTask.Task.Common
-
-$ErrorActionPreference = "Stop"
-
-. ./Utility.ps1
-. ./AzureResourceManagerHelper.ps1
-
-Validate-AzurePowershellVersion
+if($connectedServiceNameSelector -eq "ConnectedServiceNameClassic")
+{
+    $connectedServiceName = $connectedServiceNameClassic
+    $action = $actionClassic
+    $resourceGroupName = $cloudService
+}
 
 $resourceGroupName = $resourceGroupName.Trim()
 $location = $location.Trim()
-$csmFile = $csmFile.Trim()
-$csmParametersFile = $csmParametersFile.Trim()
+$csmFile = $csmFile.Trim('"', ' ')
+$csmParametersFile = $csmParametersFile.Trim('"', ' ')
 $overrideParameters = $overrideParameters.Trim()
+$outputVariable = $outputVariable.Trim()
+$telemetrySet = $false
+$ErrorActionPreference = "Stop"
 
-if( $action -eq "Create Or Update Resource Group" )
+# Import all the dlls and modules which have cmdlets we need
+Import-Module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
+Import-Module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
+Import-Module "Microsoft.TeamFoundation.DistributedTask.Task.Deployment.Internal"
+
+# Load all dependent files for execution
+Import-Module ./Utility.ps1 -Force
+
+function Handle-SelectResourceGroupAction
 {
-    $csmFileName = [System.IO.Path]::GetFileNameWithoutExtension($csmFile)
-
-    #Create csm parameter object
-    $csmAndParameterFiles = Get-CsmAndParameterFiles -csmFile $csmFile -csmParametersFile $csmParametersFile
-
-    if ($csmParametersFile -ne $env:BUILD_SOURCESDIRECTORY -and $csmParametersFile -ne [String]::Concat($env:BUILD_SOURCESDIRECTORY, "\"))
+    if([string]::IsNullOrEmpty($outputVariable))
     {
-        $csmParametersFileContent = [System.IO.File]::ReadAllText($csmAndParameterFiles["csmParametersFile"])
+        Write-TaskSpecificTelemetry "PREREQ_NoOutputVariableForSelectActionInAzureRG"
+        throw (Get-LocalizedString -Key "Please provide the output variable name since you have specified the 'Select Resource Group' option.")
+    }
+
+    Instantiate-Environment -resourceGroupName $resourceGroupName -outputVariable $outputVariable -enableDeploymentPrerequisites $enableDeploymentPrerequisitesForSelect
+}
+
+function Handle-ResourceGroupLifeCycleOperations
+{
+    $serviceEndpoint = Get-ServiceEndpoint -Name "$ConnectedServiceName" -Context $distributedTaskContext
+    if ($serviceEndpoint.Authorization.Scheme -eq 'Certificate')
+    {
+        Write-TaskSpecificTelemetry "PREREQ_InvalidServiceConnectionType"
+        throw (Get-LocalizedString -Key "Certificate based authentication only works with the 'Select Resource Group' action. Please select an Azure subscription with either Credential or SPN based authentication.")
+    }
+
+    if( $action -eq "Create Or Update Resource Group" )
+    {
+        $azureResourceGroupDeployment = Create-AzureResourceGroup -csmFile $csmFile -csmParametersFile $csmParametersFile -resourceGroupName $resourceGroupName -location $location -overrideParameters $overrideParameters
+
+        if(-not [string]::IsNullOrEmpty($outputVariable))
+        {
+            Instantiate-Environment -resourceGroupName $resourceGroupName -outputVariable $outputVariable -enableDeploymentPrerequisites $enableDeploymentPrerequisitesForCreate
+        }
+        elseif($enableDeploymentPrerequisitesForCreate -eq "true")
+        {
+            Enable-WinRMHttpsListener -ResourceGroupName $resourceGroupName
+        }
     }
     else
     {
-        $csmParametersFileContent = [String]::Empty
+        Perform-Action -action $action -resourceGroupName $resourceGroupName
     }
-
-    #Get current subscription
-    $currentSubscription = Get-CurrentSubscriptionInformation
-
-    $parametersObject = Get-CsmParameterObject -csmParameterFileContent $csmParametersFileContent
-
-    # Create azure resource group
-    Switch-AzureMode AzureResourceManager
-
-    $resourceGroupDeployment = Create-AzureResourceGroup -csmFile $csmAndParameterFiles["csmFile"] -csmParametersObject $parametersObject -resourceGroupName $resourceGroupName -location $location -overrideParameters $overrideParameters
 }
-else
+
+try
 {
-    Switch-AzureMode AzureResourceManager
+    Validate-AzurePowerShellVersion
 
-    #Performing action on resource group 
-    Perform-Action -action $action -resourceGroupName $resourceGroupName
+    $azureUtility = Get-AzureUtility
+    Write-Verbose -Verbose "Loading $azureUtility"
+    Import-Module ./$azureUtility -Force
+
+    switch ($action)
+    {
+        "Select Resource Group" {
+            Handle-SelectResourceGroupAction
+            break
+        }
+
+        default {
+            Handle-ResourceGroupLifeCycleOperations
+            break
+        }
+    }
+	
+	Write-Verbose -Verbose "Completing Azure Resource Group Deployment Task"
 }
-
-Write-Verbose "Completing Azure Resource Group Deployment Task" -Verbose
+catch
+{
+    Write-TaskSpecificTelemetry "UNKNOWNDEP_Error"
+    throw
+}

@@ -3,13 +3,13 @@
     "name": "NuGetPackager",
     "friendlyName": "NuGet Packager",
     "description": "Creates nupkg outputs from csproj or nuspec files",
-    "helpMarkDown": " ",
+    "helpMarkDown": "[More Information](http://go.microsoft.com/fwlink/?LinkID=627416)",
     "category": "Package",
     "author": "Lawrence Gripper",
     "version": {
         "Major": 0,
         "Minor": 1,
-        "Patch": 55
+        "Patch": 63
     },
     "minimumAgentVersion": "1.83.0",
     "groups": [
@@ -26,7 +26,7 @@
             "type": "filePath",
             "label": "Path/Pattern to nuspec files",
             "defaultValue":"**\\*.nuspec",
-            "helpMarkDown": "Minimatch pattern to search for nuspec and csproj files to pack.  [About Minimatch](https://realguess.net/tags/minimatch/)",
+            "helpMarkDown": "Pattern to search for nuspec and csproj files to pack.",
             "required":true
         },
         {

@@ -1,7 +1,12 @@
-﻿## Logging Commands:
+## Logging Commands:
 
 The general format for a logging command is:
     ##vso[area.action property1=value;property2=value;...]message
+
+To invoke a logging command, simply emit the command via standard output. For example, from a PowerShell task:
+```
+"##vso[task.setvariable variable=testvar;]testvalue"
+```
 
 #### Task Logging Commands:
 <table>
@@ -10,6 +15,7 @@ The general format for a logging command is:
             <th>Syntax</th>
             <th>Property Name</th>
             <th>Usage</th>
+            <th>Minimum Agent Version</th>
         </tr>
     </thead>
     <tbody>
@@ -24,7 +30,7 @@ The general format for a logging command is:
                     type=error or warning (Required) <br>
                     sourcepath=source file location <br>
                     linenumber=line number <br>
-                    columnumber=colum number <br>
+                    columnnumber=column number <br>
                     code=error or warning code <br>
                 </p>
             </td>
@@ -32,8 +38,10 @@ The general format for a logging command is:
                 <p align="left">
                     Log error or warning issue to timeline record of current task.<br>
                     Example: <br>
-                    ##vso[task.logissue type=error;sourcepath=consoleapp/main.cs;linenumber=1;columnumber=1;code=100;]this is an error
+                    ##vso[task.logissue type=error;sourcepath=consoleapp/main.cs;linenumber=1;columnnumber=1;code=100;]this is an error
                 </p>
+            </td>
+            <td>
             </td>
         </tr>
         <tr>
@@ -54,6 +62,8 @@ The general format for a logging command is:
                     ##vso[task.setprogress value=75;]Upload Log
                 </p>
             </td>
+            <td>
+            </td>
         </tr>
         <tr>
             <td>
@@ -72,6 +82,8 @@ The general format for a logging command is:
                     Example: <br>
                     ##vso[task.complete result=Succeeded;]DONE
                 </p>
+            </td>
+            <td>
             </td>
         </tr>
         <tr>
@@ -107,6 +119,8 @@ The general format for a logging command is:
                     Update exist timeline record: ##vso[task.logdetail id=exist timeline record guid;progress=15;state=InProgress;]update timeline record
                 </p>
             </td>
+            <td>
+            </td>
         </tr>
         <tr>
             <td>
@@ -118,13 +132,19 @@ The general format for a logging command is:
                 <p align="left">
                     variable=variable name (Required) <br>
                 </p>
+                 <p align="left">
+                    issecret=true (Optional) <br>
+                </p>
             </td>
             <td>
                 <p align="left">
-                    Set variable in variable service of taskcontext. The first task can set an variable, and following tasks are able to use the variable.<br>
+                    Sets a variable in the variable service of taskcontext. The first task can set a variable, and following tasks are able to use the variable. The variable is exposed to the following tasks as an environment variable. When 'issecret' is set to true, the value of the variable will be saved as secret and masked out from log.<br>
                     Example: <br>
-					##vso[task.setvariable variable=testvar;]testvalue<br> 
+                    ##vso[task.setvariable variable=testvar;]testvalue<br> 
+                    ##vso[task.setvariable variable=testvar;issecret=true;]testvalue<br> 
                 </p>
+            </td>
+            <td>
             </td>
         </tr>
         <tr>
@@ -146,6 +166,31 @@ The general format for a logging command is:
 					##vso[task.addattachment type=myattachmenttype;name=myattachmentname;]c:\myattachment.txt<br> 
                 </p>
             </td>
+            <td>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <p align="left">
+                    ##vso[task.uploadsummary]local file path
+                </p>
+            </td>
+            <td>
+                <p align="left">
+                </p>
+            </td>
+            <td>
+                <p align="left">
+                    Upload and attach summary markdown to current timeline record. <br>
+                    Example: <br>
+                    ##vso[task.uploadsummary]c:\testsummary.md <br>
+                    It is a short hand form for the command <br>
+                    ##vso[task.addattachment type=Distributedtask.Core.Summary;name=testsummaryname;]c:\testsummary.md<br> 
+                </p>
+            </td>
+            <td>
+               0.5.6
+            </td>
         </tr>
     </tbody>
 </table>
@@ -158,6 +203,7 @@ The general format for a logging command is:
             <th>Syntax</th>
             <th>Property Name</th>
             <th>Usage</th>
+            <th>Minimum Agent Version</th>
         </tr>
     </thead>
     <tbody>
@@ -169,15 +215,22 @@ The general format for a logging command is:
             </td>
             <td>
                 <p align="left">
-                    artifactname=artifact name (Required)
+                    artifactname=artifact name (Required) <br>
+                    type = artifact type (Required, supported artifact type: container, filepath, versioncontrol, gitref, tfvclabel)<br> 
                 </p>
             </td>
             <td>
                 <p align="left">
                     Create an artifact link, artifact location is required to be a file container path, VC path or UNC share path. <br>
-                    Example: <br>
-                    ##vso[artifact.associate artifactname=drop;]#/1/build <br>
+                    Examples: <br>
+                    ##vso[artifact.associate type=container;artifactname=MyServerDrop]#/1/build <br>
+                    ##vso[artifact.associate type=filepath;artifactname=MyFileShareDrop]\\MyShare\MyDropLocation <br>
+                    ##vso[artifact.associate type=versioncontrol;artifactname=MyTfvcPath]$/MyTeamProj/MyFolder <br>
+                    ##vso[artifact.associate type=gitref;artifactname=MyTag]refs/tags/MyGitTag <br>
+                    ##vso[artifact.associate type=tfvclabel;artifactname=MyTag]MyTfvcLabel <br>
                 </p>
+            </td>
+            <td>
             </td>
         </tr>
         <tr>
@@ -199,6 +252,8 @@ The general format for a logging command is:
                     ##vso[artifact.upload containerfolder=testresult;artifactname=uploadedresult;]c:\testresult.trx<br>
                 </p>
             </td>
+            <td>
+            </td>
     </tbody>
 </table>
 
@@ -210,6 +265,7 @@ The general format for a logging command is:
             <th>Syntax</th>
             <th>Property Name</th>
             <th>Usage</th>
+            <th>Minimum Agent Version</th>
         </tr>
     </thead>
     <tbody>
@@ -230,25 +286,10 @@ The general format for a logging command is:
                     ##vso[build.uploadlog]c:\msbuild.log
                 </p>
             </td>
+            <td>
+            </td>
         </tr>
         <tr>
-            <td>
-                <p align="left">
-                    ##vso[build.uploadsummary]local file path
-                </p>
-            </td>
-            <td>
-                <p align="left">
-                </p>
-            </td>
-            <td>
-                <p align="left">
-                    Upload customized summary.md to build’s container “summaries” folder.<br>
-                    Example: <br>
-                    ##vso[build.uploadsummary]c:\testsummary.md
-                </p>
-            </td>
-        </tr><tr>
             <td>
                 <p align="left">
                     ##vso[build.updatebuildnumber]build number
@@ -264,6 +305,30 @@ The general format for a logging command is:
                     Example: <br>
                     ##vso[build.updatebuildnumber]my-new-build-number
                 </p>
+            </td>
+            <td>
+                1.88
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <p align="left">
+                    ##vso[build.addbuildtag]build tag
+                </p>
+            </td>
+            <td>
+                <p align="left">
+                </p>
+            </td>
+            <td>
+                <p align="left">
+                    Add a tag for current build.<br>
+                    Example: <br>
+                    ##vso[build.addbuildtag]Tag_UnitTestPassed
+                </p>
+            </td>
+            <td>
+                1.95
             </td>
         </tr>
     </tbody>

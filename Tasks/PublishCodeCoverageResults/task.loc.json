@@ -1,6 +1,3 @@
-// *******************************************************
-// GENERATED FILE - DO NOT EDIT DIRECTLY
-// *******************************************************
 {
   "id": "2A7EBC54-C13E-490E-81A5-D7561AB7CD97",
   "name": "PublishCodeCoverageResults",
@@ -9,17 +6,16 @@
   "helpMarkDown": "ms-resource:loc.helpMarkDown",
   "category": "Test",
   "visibility": [
-    "Preview",
     "Build"
   ],
   "author": "Microsoft Corporation",
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 0
+    "Patch": 7
   },
   "demands": [],
-  "minimumAgentVersion": "1.88.0",
+  "minimumAgentVersion": "1.90.0",
   "instanceNameFormat": "ms-resource:loc.instanceNameFormat",
   "inputs": [
     {
@@ -30,7 +26,8 @@
       "defaultValue": "JaCoCo",
       "helpMarkDown": "ms-resource:loc.input.help.codeCoverageTool",
       "options": {
-        "JaCoCo": "JaCoCo"
+        "JaCoCo": "JaCoCo",
+        "Cobertura": "Cobertura"
       }
     },
     {
@@ -62,7 +59,14 @@
     "PowerShell": {
       "target": "$(currentDirectory)\\PublishCodeCoverageResults.ps1",
       "argumentFormat": "",
-      "workingDirectory": "$(currentDirectory)"
+      "workingDirectory": "$(currentDirectory)",
+      "platforms": [
+        "windows"
+      ]
+    },
+    "Node": {
+      "target": "publishcodecoverageresults.js",
+      "argumentFormat": ""
     }
   }
 }

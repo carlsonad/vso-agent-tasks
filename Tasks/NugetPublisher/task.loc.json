@@ -1,6 +1,3 @@
-// *******************************************************
-// GENERATED FILE - DO NOT EDIT DIRECTLY
-// *******************************************************
 {
   "id": "333b11bd-d341-40d9-afcf-b32d5ce6f25b",
   "name": "NuGetPublisher",
@@ -12,7 +9,7 @@
   "version": {
     "Major": 0,
     "Minor": 1,
-    "Patch": 36
+    "Patch": 47
   },
   "minimumAgentVersion": "1.83.0",
   "groups": [
@@ -28,16 +25,37 @@
       "name": "searchPattern",
       "type": "filePath",
       "label": "ms-resource:loc.input.label.searchPattern",
-      "defaultValue": "**\\*.nupkg",
+      "defaultValue": "**\\*.nupkg;-:**\\packages\\**\\*.nupkg",
       "helpMarkDown": "ms-resource:loc.input.help.searchPattern",
       "required": true
+    },
+    {
+      "name": "nuGetFeedType",
+      "type": "radio",
+      "label": "ms-resource:loc.input.label.nuGetFeedType",
+      "required": true,
+      "defaultValue": "external",
+      "options": {
+        "external": "External NuGet Feed",
+        "internal": "Internal NuGet Feed"
+      }
     },
     {
       "name": "connectedServiceName",
       "type": "connectedService:Generic",
       "label": "ms-resource:loc.input.label.connectedServiceName",
       "required": true,
-      "helpMarkDown": "ms-resource:loc.input.help.connectedServiceName"
+      "helpMarkDown": "ms-resource:loc.input.help.connectedServiceName",
+      "visibleRule": "nuGetFeedType = external"
+    },
+    {
+      "name": "feedName",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.feedName",
+      "defaultValue": "",
+      "required": true,
+      "helpMarkDown": "ms-resource:loc.input.help.feedName",
+      "visibleRule": "nuGetFeedType = internal"
     },
     {
       "name": "nuGetAdditionalArgs",

@@ -1,6 +1,3 @@
-// *******************************************************
-// GENERATED FILE - DO NOT EDIT DIRECTLY
-// *******************************************************
 {
   "id": "0B0F01ED-7DDE-43FF-9CBB-E48954DAF9B1",
   "name": "PublishTestResults",
@@ -16,7 +13,7 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 7
+    "Patch": 22
   },
   "demands": [],
   "minimumAgentVersion": "1.83.0",
@@ -59,6 +56,14 @@
       "helpMarkDown": "ms-resource:loc.input.help.mergeTestResults"
     },
     {
+      "name": "testRunTitle",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.testRunTitle",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.testRunTitle"
+    },
+    {
       "name": "platform",
       "type": "string",
       "label": "ms-resource:loc.input.label.platform",
@@ -75,6 +80,15 @@
       "required": false,
       "groupName": "advanced",
       "helpMarkDown": "ms-resource:loc.input.help.configuration"
+    },
+    {
+      "name": "publishRunAttachments",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.publishRunAttachments",
+      "defaultValue": "true",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.publishRunAttachments",
+      "groupName": "advanced"
     }
   ],
   "instanceNameFormat": "ms-resource:loc.instanceNameFormat",
@@ -82,10 +96,13 @@
     "PowerShell": {
       "target": "$(currentDirectory)\\PublishTestResults.ps1",
       "argumentFormat": "",
-      "workingDirectory": "$(currentDirectory)"
+      "workingDirectory": "$(currentDirectory)",
+      "platforms": [
+        "windows"
+      ]
     },
     "Node": {
-      "target": "PublishTestResults.js",
+      "target": "publishtestresults.js",
       "argumentFormat": ""
     }
   }

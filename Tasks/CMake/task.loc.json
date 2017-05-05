@@ -1,6 +1,3 @@
-// *******************************************************
-// GENERATED FILE - DO NOT EDIT DIRECTLY
-// *******************************************************
 {
   "id": "7D831C3C-3C68-459A-A5C9-BDE6E659596C",
   "name": "CMake",
@@ -18,9 +15,9 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 9
+    "Patch": 16
   },
-  "minimumAgentVersion": "1.83.0",
+  "minimumAgentVersion": "1.91.0",
   "instanceNameFormat": "ms-resource:loc.instanceNameFormat",
   "inputs": [
     {
@@ -42,7 +39,7 @@
   ],
   "execution": {
     "Node": {
-      "target": "cmake2.js",
+      "target": "cmaketask.js",
       "argumentFormat": ""
     },
     "PowerShell": {
@@ -50,5 +47,9 @@
       "argumentFormat": "",
       "workingDirectory": "$(currentDirectory)"
     }
+  },
+  "messages": {
+    "CMakeReturnCode": "ms-resource:loc.messages.CMakeReturnCode",
+    "CMakeFailed": "ms-resource:loc.messages.CMakeFailed"
   }
 }

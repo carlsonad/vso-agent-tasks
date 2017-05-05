@@ -1,6 +1,3 @@
-// *******************************************************
-// GENERATED FILE - DO NOT EDIT DIRECTLY
-// *******************************************************
 {
   "id": "AC4EE482-65DA-4485-A532-7B085873E532",
   "name": "Maven",
@@ -19,14 +16,19 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 13
+    "Patch": 36
   },
-  "minimumAgentVersion": "1.83.0",
+  "minimumAgentVersion": "1.89.0",
   "instanceNameFormat": "ms-resource:loc.instanceNameFormat",
   "groups": [
     {
       "name": "junitTestResults",
       "displayName": "ms-resource:loc.group.displayName.junitTestResults",
+      "isExpanded": true
+    },
+    {
+      "name": "codeCoverage",
+      "displayName": "ms-resource:loc.group.displayName.codeCoverage",
       "isExpanded": true
     },
     {
@@ -79,7 +81,61 @@
       "defaultValue": "**/TEST-*.xml",
       "required": true,
       "groupName": "junitTestResults",
-      "helpMarkDown": "ms-resource:loc.input.help.testResultsFiles"
+      "helpMarkDown": "ms-resource:loc.input.help.testResultsFiles",
+      "visibleRule": "publishJUnitResults = true"
+    },
+    {
+      "name": "testRunTitle",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.testRunTitle",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "junitTestResults",
+      "helpMarkDown": "ms-resource:loc.input.help.testRunTitle",
+      "visibleRule": "publishJUnitResults = true"
+    },
+    {
+      "name": "codeCoverageTool",
+      "type": "pickList",
+      "label": "ms-resource:loc.input.label.codeCoverageTool",
+      "required": false,
+      "groupName": "codeCoverage",
+      "defaultValue": "None",
+      "helpMarkDown": "ms-resource:loc.input.help.codeCoverageTool",
+      "options": {
+        "None": "None",
+        "JaCoCo": "JaCoCo",
+        "Cobertura": "Cobertura"
+      }
+    },
+    {
+      "name": "classFilter",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.classFilter",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "codeCoverage",
+      "helpMarkDown": "ms-resource:loc.input.help.classFilter",
+      "visibleRule": "codeCoverageTool != None"
+    },
+    {
+      "name": "classFilesDirectories",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.classFilesDirectories",
+      "required": false,
+      "groupName": "codeCoverage",
+      "helpMarkDown": "ms-resource:loc.input.help.classFilesDirectories",
+      "visibleRule": "codeCoverageTool = JaCoCo"
+    },
+    {
+      "name": "srcDirectories",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.srcDirectories",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "codeCoverage",
+      "helpMarkDown": "ms-resource:loc.input.help.srcDirectories",
+      "visibleRule": "codeCoverageTool = JaCoCo"
     },
     {
       "name": "javaHomeSelection",
@@ -132,6 +188,39 @@
         "x86": "x86",
         "x64": "x64"
       }
+    },
+    {
+      "name": "mavenVersionSelection",
+      "type": "radio",
+      "label": "ms-resource:loc.input.label.mavenVersionSelection",
+      "defaultValue": "Default",
+      "required": true,
+      "groupName": "advanced",
+      "helpMarkDown": "ms-resource:loc.input.help.mavenVersionSelection",
+      "options": {
+        "Default": "Default",
+        "Path": "Custom Path"
+      }
+    },
+    {
+      "name": "mavenPath",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.mavenPath",
+      "required": true,
+      "groupName": "advanced",
+      "defaultValue": "",
+      "helpMarkDown": "ms-resource:loc.input.help.mavenPath",
+      "visibleRule": "mavenVersionSelection = Path"
+    },
+    {
+      "name": "mavenSetM2Home",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.mavenSetM2Home",
+      "required": true,
+      "defaultValue": "false",
+      "groupName": "advanced",
+      "helpMarkDown": "ms-resource:loc.input.help.mavenSetM2Home",
+      "visibleRule": "mavenVersionSelection = Path"
     },
     {
       "name": "sqAnalysisEnabled",
@@ -191,13 +280,16 @@
   ],
   "execution": {
     "Node": {
-      "target": "maven2.js",
+      "target": "maventask.js",
       "argumentFormat": ""
     },
     "PowerShell": {
       "target": "$(currentDirectory)\\maven.ps1",
       "argumentFormat": "",
-      "workingDirectory": "$(currentDirectory)"
+      "workingDirectory": "$(currentDirectory)",
+      "platforms": [
+        "windows"
+      ]
     }
   }
 }
