@@ -9,16 +9,20 @@
     "Build",
     "Release"
   ],
+  "runsOn": [
+    "Agent",
+    "DeploymentGroup"
+  ],
   "author": "Microsoft Corporation",
   "version": {
     "Major": 1,
-    "Minor": 1,
-    "Patch": 0
+    "Minor": 2,
+    "Patch": 3
   },
   "demands": [
     "DotNetFramework"
   ],
-  "minimumAgentVersion": "1.96.2",
+  "minimumAgentVersion": "1.102",
   "groups": [
     {
       "name": "advanced",
@@ -78,6 +82,15 @@
         "rows": "10",
         "maxLength": "500"
       }
+    },
+    {
+      "name": "failOnStandardError",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.failOnStandardError",
+      "defaultValue": "true",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.failOnStandardError",
+      "groupName": "advanced"
     }
   ],
   "instanceNameFormat": "ms-resource:loc.instanceNameFormat",
@@ -87,7 +100,8 @@
       "argumentFormat": "$(arguments)",
       "workingDirectory": "$(workingFolder)",
       "inlineScript": "$(inlineScript)",
-      "scriptType": "$(scriptType)"
+      "scriptType": "$(scriptType)",
+      "failOnStandardError": "$(failOnStandardError)"
     }
   }
 }

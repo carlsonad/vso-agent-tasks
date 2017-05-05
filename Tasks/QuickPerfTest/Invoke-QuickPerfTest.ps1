@@ -1,199 +1,80 @@
 [CmdletBinding(DefaultParameterSetName = 'None')]
 param
 (
-    [String] [Parameter(Mandatory = $true)]
-    $connectedServiceName,
+[String]
+$env:SYSTEM_DEFINITIONID,
+[String]
+$env:BUILD_BUILDID,
 
-    [String] [Parameter(Mandatory = $true)]
-    $websiteUrl,
-    [String] [Parameter(Mandatory = $true)]
-    $testName,
-    [String] [Parameter(Mandatory = $true)]
-    $vuLoad,
-    [String] [Parameter(Mandatory = $true)]
-    $runDuration,
-    [String] [Parameter(Mandatory = $true)]
-    $geoLocation
+[String] [Parameter(Mandatory = $false)]
+$connectedServiceName,
+
+[String] [Parameter(Mandatory = $true)]
+$websiteUrl,
+[String] [Parameter(Mandatory = $true)]
+$testName,
+[String] [Parameter(Mandatory = $true)]
+$vuLoad,
+[String] [Parameter(Mandatory = $true)]
+$runDuration,
+[String] [Parameter(Mandatory = $true)]
+$geoLocation,
+[String] [Parameter(Mandatory = $true)]
+$machineType,
+[String] [Parameter(Mandatory = $false)]
+$avgResponseTimeThreshold
 )
-
-$userAgent = "QuickPerfTestBuildTask"
 
 function InitializeRestHeaders()
 {
-    $restHeaders = New-Object -TypeName "System.Collections.Generic.Dictionary[[String], [String]]"
-
-    $alternateCreds = [String]::Concat($Username, ":", $Password)
-    $basicAuth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($alternateCreds))
-    $restHeaders.Add("Authorization", [String]::Concat("Basic ", $basicAuth))
-
-    return $restHeaders
+	$restHeaders = New-Object -TypeName "System.Collections.Generic.Dictionary[[String], [String]]"
+	if([string]::IsNullOrWhiteSpace($connectedServiceName))
+	{
+		$patToken = GetAccessToken $connectedServiceDetails
+		ValidatePatToken $patToken
+		$restHeaders.Add("Authorization", [String]::Concat("Bearer ", $patToken))
+		
+	}
+	else
+	{
+		$Username = $connectedServiceDetails.Authorization.Parameters.Username
+		Write-Verbose "Username = $Username" -Verbose
+		$Password = $connectedServiceDetails.Authorization.Parameters.Password
+		$alternateCreds = [String]::Concat($Username, ":", $Password)
+		$basicAuth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($alternateCreds))
+		$restHeaders.Add("Authorization", [String]::Concat("Basic ", $basicAuth))
+	}
+	return $restHeaders
 }
 
-function ComposeTestDropJson($name, $duration, $homepage, $vu)
+function GetAccessToken($vssEndPoint) 
 {
-$tdjson = @"
+	return $vssEndpoint.Authorization.Parameters.AccessToken
+}
+
+function ValidatePatToken($token)
 {
-    "dropType": "InplaceDrop",
-    "loadTestDefinition":{
-        "loadTestName":"$name",
-        "runDuration":$duration,
-        "urls":["$homepage"],
-        "browserMixs":[
-            {"browserName":"Internet Explorer 11.0","browserPercentage":60.0},
-            {"browserName":"Chrome 2","browserPercentage":40.0}
-        ],
-        "loadPatternName":"Constant",
-        "maxVusers":$vu,
-        "loadGenerationGeoLocations":[
-            {"Location":"$geoLocation","Percentage":100}
-        ]
-    }
-}
-"@
-
-    return $tdjson
+	if([string]::IsNullOrWhiteSpace($token))
+	{
+		throw "Unable to generate Personal Access Token for the user. Contact Project Collection Administrator"
+	}
 }
 
-function CreateTestDrop($headers, $dropJson)
-{
-    $uri = [String]::Format("{0}/_apis/clt/testdrops?api-version=1.0", $CltAccountUrl)
-    $drop = Invoke-RestMethod -ContentType "application/json" -UserAgent $userAgent -Uri $uri -Method Post -Headers $headers -Body $dropJson
+# Load all dependent files for execution
+. $PSScriptRoot/CltTasksUtility.ps1
+. $PSScriptRoot/VssConnectionHelper.ps1
+. $PSScriptRoot/CltThresholdValidationHelper
 
-    return $drop
-}
-
-function GetTestDrop($headers, $drop)
-{
-    $uri = [String]::Format("{0}/_apis/clt/testdrops/{1}?api-version=1.0", $CltAccountUrl, $drop.id)
-    $testdrop = Invoke-RestMethod -ContentType "application/json" -UserAgent $userAgent -Uri $uri -Headers $headers
-
-    return $testdrop
-}
-
-function UploadTestDrop($testdrop)
-{
-    $uri = New-Object System.Uri($testdrop.accessData.dropContainerUrl)
-    $sas = New-Object Microsoft.WindowsAzure.Storage.Auth.StorageCredentials($testdrop.accessData.sasKey)
-    $container = New-Object Microsoft.WindowsAzure.Storage.Blob.CloudBlobContainer($uri, $sas)
-
-    return $container
-}
-
-function GetTestRuns($headers)
-{
-    $uri = [String]::Format("{0}/_apis/clt/testruns?api-version=1.0", $CltAccountUrl)
-    $runs = Invoke-RestMethod -ContentType "application/json" -UserAgent $userAgent -Uri $uri -Headers $headers
-
-    return $runs
-}
-
-function RunInProgress($run)
-{
-    return $run.state -eq "queued" -or $run.state -eq "inProgress"
-}
-
-function MonitorTestRun($headers, $run)
-{
-    $uri = [String]::Format("{0}/_apis/clt/testruns/{1}?api-version=1.0", $CltAccountUrl, $run.id)
-    $prevState = $run.state
-    $prevSubState = $run.subState
-    Write-Output ("Load test '{0}' is in state '{1}|{2}'." -f  $run.name, $run.state, $run.subState)
-
-    do
-    {
-        Start-Sleep -s 5
-        $run = Invoke-RestMethod -ContentType "application/json" -UserAgent $userAgent -Uri $uri -Headers $headers
-        if ($prevState -ne $run.state -or $prevSubState -ne $run.subState)
-        {
-            $prevState = $run.state
-            $prevSubState = $run.subState
-            Write-Output ("Load test '{0}' is in state '{1}|{2}'." -f  $run.name, $run.state, $run.subState)
-        }
-    }
-    while (RunInProgress $run)
-
-    $run = Invoke-RestMethod -ContentType "application/json" -UserAgent $userAgent -Uri $uri -Headers $headers
-    Write-Output "------------------------------------"
-    $uri = [String]::Format("{0}/_apis/clt/testruns/{1}/messages?api-version=1.0", $CltAccountUrl, $run.id)
-    $messages = Invoke-RestMethod -ContentType "application/json" -UserAgent $userAgent -Uri $uri -Headers $headers
-
-    if ($messages)
-    {
-        $timeSorted = $messages.value | Sort-Object loggedDate
-        foreach ($message in $timeSorted)
-        {
-            switch ($message.messageType)
-            {
-                "info"      { Write-Host -NoNewline ("[Message]{0}" -f $message.message) }
-                "output"    { Write-Host -NoNewline ("[Output]{0}" -f $message.message) }
-                "warning"   { Write-Warning $message.message }
-                "error"     { Write-Error $message.message }
-                "critical"  { Write-Error $message.message }
-            }
-        }
-    }
-
-    Write-Output "------------------------------------"
-}
-
-function ComposeTestRunJson($name, $tdid)
-{
-$trjson = @"
-{
-    "name":"$name",
-    "description":"Quick perf test from automation task",
-    "testSettings":{"cleanupCommand":"", "hostProcessPlatform":"x86", "setupCommand":""},
-    "testDrop":{"id":"$tdid"},
-}
-"@
-
-    return $trjson
-}
-
-function QueueTestRun($headers, $runJson)
-{
-    $uri = [String]::Format("{0}/_apis/clt/testruns?api-version=1.0", $CltAccountUrl)
-    $run = Invoke-RestMethod -ContentType "application/json" -UserAgent $userAgent -Uri $uri -Method Post -Headers $headers -Body $runJson
-
-$start = @"
-{
-  "state": "queued"
-}
-"@
-
-    $uri = [String]::Format("{0}/_apis/clt/testruns/{1}?api-version=1.0", $CltAccountUrl, $run.id)
-    Invoke-RestMethod -ContentType "application/json" -UserAgent $userAgent -Uri $uri -Method Patch -Headers $headers -Body $start
-    $run = Invoke-RestMethod -ContentType "application/json" -UserAgent $userAgent -Uri $uri -Headers $headers
-
-    return $run
-}
-
-function ComposeAccountUrl($vsoUrl)
-{
-    $elsUrl = $vsoUrl
-
-    if ($vsoUrl -notlike "*VSCLT.VISUALSTUDIO.COM*")
-    {
-        if ($vsoUrl -like "*VISUALSTUDIO.COM*")
-        {
-            $accountName = $vsoUrl.Split('//')[2].Split('.')[0]
-            $elsUrl = ("https://{0}.vsclt.visualstudio.com" -f $accountName)
-        }
-    }
-
-    return $elsUrl
-}
-
-function ValidateInputs()
-{
-    if (![System.Uri]::IsWellFormedUriString($websiteUrl, [System.UriKind]::Absolute))
-    {
-        throw "Website Url is not well formed."
-    }
-}
+$userAgent = "QuickPerfTestBuildTask"
+$global:RestTimeout = 60
 
 ############################################## PS Script execution starts here ##########################################
 Write-Output "Starting Quick Perf Test Script"
+
+import-module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
+import-module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
+import-module "Microsoft.TeamFoundation.DistributedTask.Task.DTA"
+import-module "Microsoft.TeamFoundation.DistributedTask.Task.DevTestLabs"
 
 $testName = $testName + ".loadtest"
 Write-Output "Test name = $testName"
@@ -201,37 +82,89 @@ Write-Output "Run duration = $runDuration"
 Write-Output "Website Url = $websiteUrl"
 Write-Output "Virtual user load = $vuLoad"
 Write-Output "Load location = $geoLocation"
+Write-Output "Load generator machine type = $machineType"
+Write-Output "Run source identifier = build/$env:SYSTEM_DEFINITIONID/$env:BUILD_BUILDID"
 
-$serviceEndpoint = Get-ServiceEndpoint -Context $distributedTaskContext -Name $connectedServiceName
+#Validate Input
+ValidateInputs $websiteUrl $env:SYSTEM_TEAMFOUNDATIONCOLLECTIONURI $connectedServiceName
 
-$Username = $serviceEndpoint.Authorization.Parameters.Username
-$Password = $serviceEndpoint.Authorization.Parameters.Password
-$VSOAccountUrl = $serviceEndpoint.Url.AbsoluteUri
-##$EndpointName = $serviceEndpoint.Name
-$CltAccountUrl = ComposeAccountUrl($VSOAccountUrl)
+#Process Threshold Rules
+Write-Output "Initializing threshold rule for avg. response time with value(ms) : $avgResponseTimeThreshold "
+$avgResponseTimeThreshold = ValidateAvgResponseTimeThresholdInput $avgResponseTimeThreshold
 
-Write-Verbose "VSO account Url = $VSOAccountUrl" -Verbose
-
-ValidateInputs
-
-$h = InitializeRestHeaders
-
-$dropjson = ComposeTestDropJson $testName $runDuration $websiteUrl $vuLoad
-$drop = CreateTestDrop $h $dropjson
-if ($drop.dropType -eq "InPlaceDrop")
+#Initialize Connected Service Details
+if([string]::IsNullOrWhiteSpace($connectedServiceName))
 {
-    $runJson = ComposeTestRunJson $testName $drop.id
-
-    $run = QueueTestRun $h $runJson
-    MonitorTestRun $h $run
-
-    Write-Output ("Run-id for this load test is {0} and its name is '{1}'." -f  $run.runNumber, $run.name)
-    Write-Output "To view detailed results navigate to Load Test | Load Test Manager in Visual Studio IDE, and open this run."
+	$connectedServiceDetails = Get-ServiceEndpoint -Context $distributedTaskContext -Name SystemVssConnection
 }
 else
 {
-    Write-Error ("Failed to connect to the endpoint '{0}' for VSO account '{1}'" -f $EndpointName, $VSOAccountUrl)
+	$connectedServiceDetails = Get-ServiceEndpoint -Context $distributedTaskContext -Name $connectedServiceName
 }
 
-Write-Output "Finished Quick Perf Test Script"
+$VSOAccountUrl = $connectedServiceDetails.Url.AbsoluteUri
+Write-Output "VSO Account URL is : $VSOAccountUrl"
+$headers = InitializeRestHeaders
+$CltAccountUrl = ComposeAccountUrl $VSOAccountUrl $headers
+$TFSAccountUrl = $env:System_TeamFoundationCollectionUri.TrimEnd('/')
+
+Write-Output "VSO account Url = $TFSAccountUrl" -Verbose
+Write-Output "CLT account Url = $CltAccountUrl" -Verbose
+
+$dropjson = ComposeTestDropJson $testName $runDuration $websiteUrl $vuLoad $geoLocation
+
+$drop = CreateTestDrop $headers $dropjson $CltAccountUrl
+
+if ($drop.dropType -eq "InPlaceDrop")
+{
+	$runJson = ComposeTestRunJson $testName $drop.id $MachineType
+	$run = QueueTestRun $headers $runJson $CltAccountUrl
+	MonitorTestRun $headers $run $CltAccountUrl
+	$webResultsUrl = GetTestRunUri $run.id $headers $CltAccountUrl
+	
+	Write-Output ("Run-id for this load test is {0} and its name is '{1}'." -f  $run.runNumber, $run.name)
+	Write-Output ("To view run details navigate to {0}" -f $webResultsUrl)
+	Write-Output "To view detailed results navigate to Load Test | Load Test Manager in Visual Studio IDE, and open this run."
+
+	$resultsMDFolder = New-Item -ItemType Directory -Force -Path "$env:Temp\LoadTestResultSummary"	
+	$resultFilePattern = ("QuickPerfTestResults_{0}_{1}_*.md" -f $env:AGENT_ID, $env:SYSTEM_DEFINITIONID)
+	$excludeFilePattern = ("QuickPerfTestResults_{0}_{1}_{2}_*.md" -f $env:AGENT_ID, $env:SYSTEM_DEFINITIONID, $env:BUILD_BUILDID)
+	
+	if($avgResponseTimeThreshold)
+	{
+		$avgResponseTimeThresholdValidationResult = ValidateAvgResponseTimeThreshold $CltAccountUrl $headers $run.id $avgResponseTimeThreshold 
+		if($avgResponseTimeThresholdValidationResult -eq $false)
+		{
+			Write-Output "The Avg.Response Time for the run is greater than the threshold value of $avgResponseTimeThreshold specified for the run "
+			Write-Output "To view detailed results navigate to Load Test | Load Test Manager in Visual Studio IDE, and open this run."
+			Write-Error "Load test task is marked as failed, as there were threshold violations for the Avg. Response Time"
+		}
+	}
+
+	Remove-Item $resultsMDFolder\$resultFilePattern -Exclude $excludeFilePattern -Force	
+	$summaryFile =  ("{0}\QuickPerfTestResults_{1}_{2}_{3}_{4}.md" -f $resultsMDFolder, $env:AGENT_ID, $env:SYSTEM_DEFINITIONID, $env:BUILD_BUILDID, $run.id)	
+
+	if ($thresholdViolationsCount -gt 0)
+	{
+		$thresholdMessage=("{0} thresholds violated." -f $thresholdViolationsCount)
+		$thresholdImage="bowtie-status-error"
+	}
+	else
+	{
+		$thresholdMessage="No thresholds violated."
+		$thresholdImage="bowtie-status-success"
+	}
+	$summary = ('[Test Run: {0}]({1}) using {2}.<br/>' -f  $run.runNumber, $webResultsUrl ,$run.name)
+	$summary = ('<span class="bowtie-icon {3}" />   {4}<br/>[Test Run: {0}]({1}) using {2}.<br/>' -f  $run.runNumber, $webResultsUrl , $run.name, $thresholdImage, $thresholdMessage)
+
+	('<p>{0}</p>' -f $summary) | Out-File  $summaryFile -Encoding ascii -Append
+	UploadSummaryMdReport $summaryFile
+}
+else
+{
+	Write-Error ("Failed to connect to the endpoint '{0}' for VSO account '{1}'" -f $EndpointName, $VSOAccountUrl)
+}
+
+
+Write-Output "Quick Perf Test Script execution completed"
 

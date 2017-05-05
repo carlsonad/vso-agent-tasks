@@ -13,7 +13,7 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 3
+    "Patch": 21
   },
   "demands": [
     "msbuild",
@@ -26,7 +26,6 @@
       "type": "connectedService:Generic",
       "label": "ms-resource:loc.input.label.connectedServiceName",
       "defaultValue": "",
-      "required": true,
       "helpMarkDown": "ms-resource:loc.input.help.connectedServiceName"
     },
     {
@@ -99,6 +98,24 @@
         "Australia East": "Australia East (New South Wales)",
         "Australia Southeast": "Australia Southeast (Victoria)"
       }
+    },
+    {
+      "name": "machineType",
+      "type": "radio",
+      "label": "ms-resource:loc.input.label.machineType",
+      "required": true,
+      "defaultValue": "0",
+      "options": {
+        "0": "Automatically provisioned agents",
+        "2": "Self-provisioned agents"
+      }
+    },
+    {
+      "name": "avgResponseTimeThreshold",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.avgResponseTimeThreshold",
+      "helpMarkDown": "ms-resource:loc.input.help.avgResponseTimeThreshold",
+      "defaultValue": "0"
     }
   ],
   "instanceNameFormat": "ms-resource:loc.instanceNameFormat",

@@ -11,8 +11,8 @@
   "author": "Microsoft Corporation",
   "version": {
     "Major": 1,
-    "Minor": 0,
-    "Patch": 13
+    "Minor": 117,
+    "Patch": 0
   },
   "demands": [
     "Xamarin.iOS"
@@ -47,6 +47,39 @@
       "helpMarkDown": "ms-resource:loc.input.help.configuration"
     },
     {
+      "name": "clean",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.clean",
+      "defaultValue": "false",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.clean"
+    },
+    {
+      "name": "packageApp",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.packageApp",
+      "defaultValue": true,
+      "required": true,
+      "helpMarkDown": "ms-resource:loc.input.help.packageApp"
+    },
+    {
+      "name": "forSimulator",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.forSimulator",
+      "defaultValue": "false",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.forSimulator"
+    },
+    {
+      "name": "runNugetRestore",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.runNugetRestore",
+      "defaultValue": "true",
+      "required": true,
+      "helpMarkDown": "ms-resource:loc.input.help.runNugetRestore",
+      "groupName": "advanced"
+    },
+    {
       "name": "args",
       "type": "string",
       "label": "ms-resource:loc.input.label.args",
@@ -64,6 +97,18 @@
       "groupName": "advanced"
     },
     {
+      "name": "buildTool",
+      "type": "radio",
+      "label": "ms-resource:loc.input.label.buildTool",
+      "required": false,
+      "groupName": "advanced",
+      "defaultValue": "xbuild",
+      "options": {
+        "xbuild": "xbuild (Xamarin Studio)",
+        "msbuild": "MSBuild (Visual Studio for Mac)"
+      }
+    },
+    {
       "name": "mdtoolLocation",
       "type": "string",
       "label": "ms-resource:loc.input.label.mdtoolLocation",
@@ -71,22 +116,6 @@
       "required": false,
       "helpMarkDown": "ms-resource:loc.input.help.mdtoolLocation",
       "groupName": "advanced"
-    },
-    {
-      "name": "packageApp",
-      "type": "boolean",
-      "label": "ms-resource:loc.input.label.packageApp",
-      "defaultValue": true,
-      "required": true,
-      "helpMarkDown": "ms-resource:loc.input.help.packageApp"
-    },
-    {
-      "name": "forSimulator",
-      "type": "boolean",
-      "label": "ms-resource:loc.input.label.forSimulator",
-      "defaultValue": "false",
-      "required": false,
-      "helpMarkDown": "ms-resource:loc.input.help.forSimulator"
     },
     {
       "name": "signMethod",
@@ -182,5 +211,20 @@
       "target": "xamarinios.js",
       "argumentFormat": ""
     }
+  },
+  "messages": {
+    "SignIdNotFound": "ms-resource:loc.messages.SignIdNotFound",
+    "TempKeychainSetupFailed": "ms-resource:loc.messages.TempKeychainSetupFailed",
+    "ProvProfileDetailsNotFound": "ms-resource:loc.messages.ProvProfileDetailsNotFound",
+    "ProvProfileUUIDNotFound": "ms-resource:loc.messages.ProvProfileUUIDNotFound",
+    "TempKeychainDeleteFailed": "ms-resource:loc.messages.TempKeychainDeleteFailed",
+    "ProvProfileDeleteFailed": "ms-resource:loc.messages.ProvProfileDeleteFailed",
+    "XamariniOSSucceeded": "ms-resource:loc.messages.XamariniOSSucceeded",
+    "XamariniOSFailed": "ms-resource:loc.messages.XamariniOSFailed",
+    "MSB_Build0": "ms-resource:loc.messages.MSB_Build0",
+    "MSB_DetectedNuGetExtensionsLoaderPath0": "ms-resource:loc.messages.MSB_DetectedNuGetExtensionsLoaderPath0",
+    "MSB_SolutionNotFoundUsingSearchPattern0": "ms-resource:loc.messages.MSB_SolutionNotFoundUsingSearchPattern0",
+    "MSB_RestoreNuGetPackagesDeprecated": "ms-resource:loc.messages.MSB_RestoreNuGetPackagesDeprecated",
+    "MSB_BuildToolNotFound": "ms-resource:loc.messages.MSB_BuildToolNotFound"
   }
 }

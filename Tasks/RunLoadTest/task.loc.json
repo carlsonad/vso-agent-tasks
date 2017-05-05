@@ -13,7 +13,7 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 4
+    "Patch": 19
   },
   "demands": [
     "msbuild",
@@ -26,22 +26,13 @@
       "type": "connectedService:Generic",
       "label": "ms-resource:loc.input.label.connectedServiceName",
       "defaultValue": "",
-      "required": true,
       "helpMarkDown": "ms-resource:loc.input.help.connectedServiceName"
     },
     {
-      "name": "TestSettings",
-      "type": "filePath",
-      "label": "ms-resource:loc.input.label.TestSettings",
-      "defaultValue": "",
-      "required": true,
-      "helpMarkDown": "ms-resource:loc.input.help.TestSettings"
-    },
-    {
       "name": "TestDrop",
-      "type": "filePath",
+      "type": "string",
       "label": "ms-resource:loc.input.label.TestDrop",
-      "defaultValue": "",
+      "defaultValue": "$(System.DefaultWorkingDirectory)",
       "required": true,
       "helpMarkDown": "ms-resource:loc.input.help.TestDrop"
     },
@@ -49,9 +40,17 @@
       "name": "LoadTest",
       "type": "string",
       "label": "ms-resource:loc.input.label.LoadTest",
-      "defaultValue": "loadtest1.loadtest",
+      "defaultValue": "",
       "required": true,
       "helpMarkDown": "ms-resource:loc.input.help.LoadTest"
+    },
+    {
+      "name": "TestSettings",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.TestSettings",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.TestSettings"
     },
     {
       "name": "ThresholdLimit",
@@ -59,6 +58,17 @@
       "label": "ms-resource:loc.input.label.ThresholdLimit",
       "required": false,
       "helpMarkDown": "ms-resource:loc.input.help.ThresholdLimit"
+    },
+    {
+      "name": "MachineType",
+      "type": "radio",
+      "label": "ms-resource:loc.input.label.MachineType",
+      "required": true,
+      "defaultValue": "0",
+      "options": {
+        "0": "Automatically provisioned agents",
+        "2": "Self-provisioned agents"
+      }
     }
   ],
   "instanceNameFormat": "ms-resource:loc.instanceNameFormat",

@@ -3,19 +3,23 @@
     "name": "AzurePowerShell",
     "friendlyName": "Azure PowerShell",
     "description": "Run a PowerShell script within an Azure environment",
-    "helpMarkDown": "[More Information](http://go.microsoft.com/fwlink/?LinkID=613749)",
+    "helpMarkDown": "[More Information](https://go.microsoft.com/fwlink/?LinkID=613749)",
     "category": "Deploy",
     "visibility": [
-                "Build",
-                "Release"
-                  ],
+        "Build",
+        "Release"
+    ],
+    "runsOn": [
+        "Agent",
+        "DeploymentGroup"
+    ],
     "author": "Microsoft Corporation",
     "version": {
         "Major": 1,
-        "Minor": 0,
-        "Patch": 14
+        "Minor": 113,
+        "Patch": 3
     },
-    "demands" : [
+    "demands": [
         "azureps"
     ],
     "minimumAgentVersion": "1.95.0",
@@ -44,19 +48,46 @@
         {
             "name": "ConnectedServiceNameARM",
             "type": "connectedService:AzureRM",
-            "label": "Azure RM Subscription",
+            "label": "Azure Subscription",
             "defaultValue": "",
             "required": true,
             "helpMarkDown": "Azure Resource Manager subscription to configure before running PowerShell",
             "visibleRule": "ConnectedServiceNameSelector = ConnectedServiceNameARM"
         },
         {
+            "name": "ScriptType",
+            "type": "pickList",
+            "label": "Script Type",
+            "required": true,
+            "helpMarkDown": "Type of the script: File Path or Inline Script",
+            "defaultValue": "FilePath",
+            "options": {
+                "FilePath": "Script File Path",
+                "InlineScript": "Inline Script"
+            }
+        },
+        {
             "name": "ScriptPath",
             "type": "filePath",
             "label": "Script Path",
             "defaultValue": "",
-            "required": true,
-            "helpMarkDown": "Path of the script. Should be fully qualified path or relative to the default working directory."
+            "required": false,
+            "helpMarkDown": "Path of the script. Should be fully qualified path or relative to the default working directory.",
+            "visibleRule": "ScriptType = FilePath"
+        },
+        {
+            "name": "Inline",
+            "type": "multiLine",
+            "label": "Inline Script",
+            "required": false,
+            "defaultValue": "# You can write your azure powershell scripts inline here. \n# You can also pass predefined and custom variables to this script using arguments",
+            "helpMarkDown": "Enter the script to execute.",
+            "visibleRule": "ScriptType = InlineScript",
+            "properties": {
+                "resizable": "true",
+                "rows": "10",
+                "maxLength": "500"
+            }
         },
         {
             "name": "ScriptArguments",
@@ -64,18 +95,16 @@
             "label": "Script Arguments",
             "defaultValue": "",
             "required": false,
+            "properties": {
+                "editorExtension": "ms.vss-services-azure.parameters-grid"
+            },
             "helpMarkDown": "Additional parameters to pass to PowerShell.  Can be either ordinal or named parameters."
         }
     ],
-    "instanceNameFormat": "Azure PowerShell script: $(ScriptPath)",
+    "instanceNameFormat": "Azure PowerShell script: $(ScriptType)",
     "execution": {
         "PowerShell3": {
             "target": "AzurePowerShell.ps1"
-        },
-        "AzurePowerShell": {
-            "target": "$(currentDirectory)\\AzurePowerShell-Legacy.ps1",
-            "argumentFormat": "",
-            "workingDirectory": "$(currentDirectory)"
         }
     },
     "messages": {

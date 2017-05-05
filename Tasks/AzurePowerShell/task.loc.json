@@ -9,11 +9,15 @@
     "Build",
     "Release"
   ],
+  "runsOn": [
+    "Agent",
+    "DeploymentGroup"
+  ],
   "author": "Microsoft Corporation",
   "version": {
     "Major": 1,
-    "Minor": 0,
-    "Patch": 14
+    "Minor": 113,
+    "Patch": 3
   },
   "demands": [
     "azureps"
@@ -51,12 +55,39 @@
       "visibleRule": "ConnectedServiceNameSelector = ConnectedServiceNameARM"
     },
     {
+      "name": "ScriptType",
+      "type": "pickList",
+      "label": "ms-resource:loc.input.label.ScriptType",
+      "required": true,
+      "helpMarkDown": "ms-resource:loc.input.help.ScriptType",
+      "defaultValue": "FilePath",
+      "options": {
+        "FilePath": "Script File Path",
+        "InlineScript": "Inline Script"
+      }
+    },
+    {
       "name": "ScriptPath",
       "type": "filePath",
       "label": "ms-resource:loc.input.label.ScriptPath",
       "defaultValue": "",
-      "required": true,
-      "helpMarkDown": "ms-resource:loc.input.help.ScriptPath"
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.ScriptPath",
+      "visibleRule": "ScriptType = FilePath"
+    },
+    {
+      "name": "Inline",
+      "type": "multiLine",
+      "label": "ms-resource:loc.input.label.Inline",
+      "required": false,
+      "defaultValue": "# You can write your azure powershell scripts inline here. \n# You can also pass predefined and custom variables to this script using arguments",
+      "helpMarkDown": "ms-resource:loc.input.help.Inline",
+      "visibleRule": "ScriptType = InlineScript",
+      "properties": {
+        "resizable": "true",
+        "rows": "10",
+        "maxLength": "500"
+      }
     },
     {
       "name": "ScriptArguments",
@@ -64,6 +95,9 @@
       "label": "ms-resource:loc.input.label.ScriptArguments",
       "defaultValue": "",
       "required": false,
+      "properties": {
+        "editorExtension": "ms.vss-services-azure.parameters-grid"
+      },
       "helpMarkDown": "ms-resource:loc.input.help.ScriptArguments"
     }
   ],
@@ -71,11 +105,6 @@
   "execution": {
     "PowerShell3": {
       "target": "AzurePowerShell.ps1"
-    },
-    "AzurePowerShell": {
-      "target": "$(currentDirectory)\\AzurePowerShell-Legacy.ps1",
-      "argumentFormat": "",
-      "workingDirectory": "$(currentDirectory)"
     }
   },
   "messages": {

@@ -13,9 +13,9 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 28
+    "Patch": 47
   },
-  "minimumAgentVersion": "1.97.0",
+  "minimumAgentVersion": "1.104.0",
   "groups": [
     {
       "name": "deployment",
@@ -90,6 +90,9 @@
       "defaultValue": "",
       "groupName": "deployment",
       "required": false,
+      "properties": {
+        "editorExtension": "ms.vss-services-azure.parameters-grid"
+      },
       "helpMarkDown": "ms-resource:loc.input.help.ScriptArguments"
     },
     {

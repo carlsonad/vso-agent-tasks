@@ -11,8 +11,8 @@
   "author": "Microsoft Corporation",
   "version": {
     "Major": 1,
-    "Minor": 0,
-    "Patch": 9
+    "Minor": 117,
+    "Patch": 0
   },
   "demands": [
     "AndroidSDK",
@@ -54,7 +54,8 @@
       "type": "string",
       "label": "ms-resource:loc.input.label.outputDir",
       "defaultValue": "",
-      "required": false
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.outputDir"
     },
     {
       "name": "configuration",
@@ -64,13 +65,73 @@
       "required": false
     },
     {
+      "name": "createAppPackage",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.createAppPackage",
+      "defaultValue": "true",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.createAppPackage"
+    },
+    {
+      "name": "clean",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.clean",
+      "defaultValue": "false",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.clean"
+    },
+    {
+      "name": "msbuildLocationMethod",
+      "type": "radio",
+      "label": "ms-resource:loc.input.label.msbuildLocationMethod",
+      "required": false,
+      "groupName": "msbuildOptions",
+      "defaultValue": "version",
+      "options": {
+        "version": "Version",
+        "location": "Specify Location"
+      }
+    },
+    {
+      "name": "msbuildVersion",
+      "type": "pickList",
+      "label": "ms-resource:loc.input.label.msbuildVersion",
+      "required": false,
+      "groupName": "msbuildOptions",
+      "defaultValue": "15.0",
+      "helpMarkDown": "ms-resource:loc.input.help.msbuildVersion",
+      "options": {
+        "latest": "Latest",
+        "15.0": "MSBuild 15.0",
+        "14.0": "MSBuild 14.0",
+        "12.0": "MSBuild 12.0",
+        "4.0": "MSBuild 4.0"
+      },
+      "visibleRule": "msbuildLocationMethod = version"
+    },
+    {
       "name": "msbuildLocation",
       "type": "string",
       "label": "ms-resource:loc.input.label.msbuildLocation",
       "defaultValue": "",
-      "required": false,
+      "required": true,
       "helpMarkDown": "ms-resource:loc.input.help.msbuildLocation",
-      "groupName": "msbuildOptions"
+      "groupName": "msbuildOptions",
+      "visibleRule": "msbuildLocationMethod = location"
+    },
+    {
+      "name": "msbuildArchitecture",
+      "type": "pickList",
+      "label": "ms-resource:loc.input.label.msbuildArchitecture",
+      "defaultValue": "x86",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.msbuildArchitecture",
+      "groupName": "msbuildOptions",
+      "options": {
+        "x86": "MSBuild x86",
+        "x64": "MSBuild x64"
+      },
+      "visibleRule": "msbuildLocationMethod = version"
     },
     {
       "name": "msbuildArguments",
@@ -136,10 +197,8 @@
   ],
   "instanceNameFormat": "ms-resource:loc.instanceNameFormat",
   "execution": {
-    "PowerShell": {
-      "target": "$(currentDirectory)\\XamarinAndroid.ps1",
-      "argumentFormat": "",
-      "workingDirectory": "$(currentDirectory)",
+    "PowerShell3": {
+      "target": "XamarinAndroid.ps1",
       "platforms": [
         "windows"
       ]
@@ -148,5 +207,12 @@
       "target": "xamarinandroid.js",
       "argumentFormat": ""
     }
+  },
+  "messages": {
+    "JDKNotFound": "ms-resource:loc.messages.JDKNotFound",
+    "NoMatchingProjects": "ms-resource:loc.messages.NoMatchingProjects",
+    "XamarinAndroidBuildFailed": "ms-resource:loc.messages.XamarinAndroidBuildFailed",
+    "XamarinAndroidSucceeded": "ms-resource:loc.messages.XamarinAndroidSucceeded",
+    "MSB_BuildToolNotFound": "ms-resource:loc.messages.MSB_BuildToolNotFound"
   }
 }

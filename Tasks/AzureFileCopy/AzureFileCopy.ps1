@@ -1,53 +1,32 @@
-param (
-    [string][Parameter(Mandatory=$true)]$connectedServiceNameSelector,
-    [string][Parameter(Mandatory=$true)]$sourcePath,    
-    [string][Parameter(Mandatory=$true)]$destination,
-    [string]$connectedServiceName,
-    [string]$connectedServiceNameARM,
-    [string]$storageAccount,
-    [string]$storageAccountRM,
-    [string]$containerName,
-    [string]$blobPrefix,
-    [string]$environmentName,
-    [string]$environmentNameRM,
-    [string]$resourceFilteringMethod,
-    [string]$machineNames,
-    [string]$vmsAdminUserName,
-    [string]$vmsAdminPassword,
-    [string]$targetPath,
-    [string]$additionalArguments,
-    [string]$cleanTargetBeforeCopy,
-    [string]$copyFilesInParallel,
-    [string]$skipCACheck,
-    [string]$enableCopyPrerequisites,
-    [string]$outputStorageContainerSasToken,
-    [string]$outputStorageURI
-)
+[CmdletBinding()]
+param()
 
-Write-Verbose "Starting Azure File Copy Task" -Verbose
+Trace-VstsEnteringInvocation $MyInvocation
 
-Write-Verbose "connectedServiceNameSelector = $connectedServiceNameSelector" -Verbose
-Write-Verbose "connectedServiceName = $connectedServiceName" -Verbose
-Write-Verbose "connectedServiceNameARM = $connectedServiceNameARM" -Verbose
-Write-Verbose "sourcePath = $sourcePath" -Verbose
-Write-Verbose "storageAccount = $storageAccount" -Verbose
-Write-Verbose "storageAccountRM = $storageAccountRM" -Verbose
-Write-Verbose "destination type = $destination" -Verbose
-Write-Verbose "containerName = $containerName" -Verbose
-Write-Verbose "blobPrefix = $blobPrefix" -Verbose
-Write-Verbose "environmentName = $environmentName" -Verbose
-Write-Verbose "environmentNameRM = $environmentNameRM" -Verbose
-Write-Verbose "resourceFilteringMethod = $resourceFilteringMethod" -Verbose
-Write-Verbose "machineNames = $machineNames" -Verbose
-Write-Verbose "vmsAdminUserName = $vmsAdminUserName" -Verbose
-Write-Verbose "targetPath = $targetPath" -Verbose
-Write-Verbose "additionalArguments = $additionalArguments" -Verbose
-Write-Verbose "cleanTargetBeforeCopy = $cleanTargetBeforeCopy" -Verbose
-Write-Verbose "copyFilesInParallel = $copyFilesInParallel" -Verbose
-Write-Verbose "skipCACheck = $skipCACheck" -Verbose
-Write-Verbose "enableCopyPrerequisites = $enableCopyPrerequisites" -Verbose
-Write-Verbose "outputStorageContainerSASToken = $outputStorageContainerSASToken" -Verbose
-Write-Verbose "outputStorageURI = $outputStorageURI" -Verbose
+# Get inputs for the task
+$connectedServiceNameSelector = Get-VstsInput -Name ConnectedServiceNameSelector -Require
+$sourcePath = Get-VstsInput -Name SourcePath -Require
+$destination = Get-VstsInput -Name Destination -Require
+$connectedServiceName = Get-VstsInput -Name ConnectedServiceName
+$connectedServiceNameARM = Get-VstsInput -Name ConnectedServiceNameARM
+$storageAccount = Get-VstsInput -Name StorageAccount
+$storageAccountRM = Get-VstsInput -Name StorageAccountRM
+$containerName = Get-VstsInput -Name ContainerName
+$blobPrefix = Get-VstsInput -Name BlobPrefix
+$environmentName = Get-VstsInput -Name EnvironmentName
+$environmentNameRM = Get-VstsInput -Name EnvironmentNameRM
+$resourceFilteringMethod = Get-VstsInput -Name ResourceFilteringMethod
+$machineNames = Get-VstsInput -Name MachineNames
+$vmsAdminUserName = Get-VstsInput -Name VmsAdminUsername
+$vmsAdminPassword = Get-VstsInput -Name VmsAdminPassword
+$targetPath = Get-VstsInput -Name TargetPath
+$additionalArguments = Get-VstsInput -Name AdditionalArguments
+$cleanTargetBeforeCopy = Get-VstsInput -Name CleanTargetBeforeCopy -AsBool
+$copyFilesInParallel = Get-VstsInput -Name CopyFilesInParallel -AsBool
+$skipCACheck = Get-VstsInput -Name SkipCACheck -AsBool
+$enableCopyPrerequisites = Get-VstsInput -Name EnableCopyPrerequisites -AsBool
+$outputStorageContainerSasToken = Get-VstsInput -Name OutputStorageContainerSasToken
+$outputStorageURI = Get-VstsInput -Name OutputStorageUri
 
 if ($connectedServiceNameSelector -eq "ConnectedServiceNameARM")
 {
@@ -56,74 +35,105 @@ if ($connectedServiceNameSelector -eq "ConnectedServiceNameARM")
     $environmentName = $environmentNameRM
 }
 
-# Constants #
+# Constants
 $defaultSasTokenTimeOutInHours = 4
 $useHttpsProtocolOption = ''
 $ErrorActionPreference = 'Stop'
 $telemetrySet = $false
+$isPremiumStorage = $false
 
 $sourcePath = $sourcePath.Trim('"')
 $storageAccount = $storageAccount.Trim()
+$containerName = $containerName.Trim().ToLower()
 
 # azcopy location on automation agent
-$agentHomeDir = $env:AGENT_HOMEDIRECTORY
-$azCopyLocation = Join-Path $agentHomeDir -ChildPath "Agent\Worker\Tools\AzCopy"
+$azCopyExeLocation = 'AzCopy\AzCopy.exe'
+$azCopyLocation = [System.IO.Path]::GetDirectoryName($azCopyExeLocation)
+
+# Initialize Azure.
+Import-Module $PSScriptRoot\ps_modules\VstsAzureHelpers_
+Initialize-Azure
+
+# Import the loc strings.
+Import-VstsLocStrings -LiteralPath $PSScriptRoot/Task.json
 
 # Import all the dlls and modules which have cmdlets we need
-Import-Module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
-Import-Module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
-Import-Module "Microsoft.TeamFoundation.DistributedTask.Task.Deployment.Internal"
-Import-Module "Microsoft.TeamFoundation.DistributedTask.Task.DevTestLabs"
+Import-Module "$PSScriptRoot\DeploymentUtilities\Microsoft.TeamFoundation.DistributedTask.Task.Deployment.Internal.psm1"
+Import-Module "$PSScriptRoot\DeploymentUtilities\Microsoft.TeamFoundation.DistributedTask.Task.Deployment.dll"
 
 # Load all dependent files for execution
-Import-Module ./AzureFileCopyJob.ps1 -Force
-Import-Module ./Utility.ps1 -Force
+. "$PSScriptRoot\AzureFileCopyJob.ps1"
+. "$PSScriptRoot\Utility.ps1"
 
-# enabling detailed logging only when system.debug is true
+# Enabling detailed logging only when system.debug is true
 $enableDetailedLoggingString = $env:system_debug
 if ($enableDetailedLoggingString -ne "true")
 {
     $enableDetailedLoggingString = "false"
 }
 
+# Telemetry
+Import-Module $PSScriptRoot\ps_modules\TelemetryHelper
+
 #### MAIN EXECUTION OF AZURE FILE COPY TASK BEGINS HERE ####
 try
 {
     # Importing required version of azure cmdlets according to azureps installed on machine
-    $azureUtility = Get-AzureUtility
+    $azureUtility = Get-AzureUtility $connectedServiceName
 
     Write-Verbose -Verbose "Loading $azureUtility"
-    Import-Module ./$azureUtility -Force
+    . "$PSScriptRoot/$azureUtility"
 
     # Getting connection type (Certificate/UserNamePassword/SPN) used for the task
-    $connectionType = Get-ConnectionType -connectedServiceName $connectedServiceName -distributedTaskContext $distributedTaskContext
+    $connectionType = Get-TypeOfConnection -connectedServiceName $connectedServiceName
 
     # Getting storage key for the storage account based on the connection type
-    $storageKey = Get-StorageKey -storageAccountName $storageAccount -connectionType $connectionType
+    $storageKey = Get-StorageKey -storageAccountName $storageAccount -connectionType $connectionType -connectedServiceName $connectedServiceName
 
     # creating storage context to be used while creating container, sas token, deleting container
     $storageContext = Create-AzureStorageContext -StorageAccountName $storageAccount -StorageAccountKey $storageKey
+	
+    # Geting Azure Storage Account type
+    $storageAccountType = Get-StorageAccountType -storageAccountName $storageAccount -connectionType $connectionType -connectedServiceName $connectedServiceName
+    Write-Verbose "Obtained Storage Account type: $storageAccountType"
+    if(-not [string]::IsNullOrEmpty($storageAccountType) -and $storageAccountType.Contains('Premium'))
+    {
+        $isPremiumStorage = $true
+    }
 
     # creating temporary container for uploading files if no input is provided for container name
     if([string]::IsNullOrEmpty($containerName))
     {
         $containerName = [guid]::NewGuid().ToString()
-        Create-AzureContainer -containerName $containerName -storageContext $storageContext
+        Create-AzureContainer -containerName $containerName -storageContext $storageContext -isPremiumStorage $isPremiumStorage
     }
+	
+    # Geting Azure Blob Storage Endpoint
+
+    $blobStorageEndpoint = Get-blobStorageEndpoint -storageAccountName $storageAccount -connectionType $connectionType -connectedServiceName $connectedServiceName
+
 }
 catch
 {
-    if(-not $telemetrySet)
-    {
-        Write-TaskSpecificTelemetry "UNKNOWNPREDEP_Error"
-    }
-
+    Write-Telemetry "Task_InternalError" $_.Exception.Message
     throw
 }
 
+if($isPremiumStorage)
+{
+    Write-Verbose "Setting BlobType to page for Premium Storage account."
+    $uploadAdditionalArguments = $additionalArguments + " /BlobType:page"
+}
+else
+{
+    $uploadAdditionalArguments = $additionalArguments
+}
+
+Check-ContainerNameAndArgs -containerName $containerName -additionalArguments $additionalArguments
+
 # Uploading files to container
-Upload-FilesToAzureContainer -sourcePath $sourcePath -storageAccountName $storageAccount -containerName $containerName -blobPrefix $blobPrefix -storageKey $storageKey `
-                             -azCopyLocation $azCopyLocation -additionalArguments $additionalArguments -destinationType $destination
+Upload-FilesToAzureContainer -sourcePath $sourcePath -storageAccountName $storageAccount -containerName $containerName -blobPrefix $blobPrefix -blobStorageEndpoint $blobStorageEndpoint -storageKey $storageKey `
+                             -azCopyLocation $azCopyLocation -additionalArguments $uploadAdditionalArguments -destinationType $destination
 
 # Complete the task if destination is azure blob
 if ($destination -eq "AzureBlob")
@@ -132,14 +142,14 @@ if ($destination -eq "AzureBlob")
     if(-not [string]::IsNullOrEmpty($outputStorageURI))
     {
         $storageAccountContainerURI = $storageContext.BlobEndPoint + $containerName
-        Write-Verbose "##vso[task.setvariable variable=$outputStorageURI;]$storageAccountContainerURI" -Verbose
+        Write-Host "##vso[task.setvariable variable=$outputStorageURI;]$storageAccountContainerURI"
     }
     if(-not [string]::IsNullOrEmpty($outputStorageContainerSASToken))
     {
         $storageContainerSaSToken = New-AzureStorageContainerSASToken -Container $containerName -Context $storageContext -Permission r -ExpiryTime (Get-Date).AddHours($defaultSasTokenTimeOutInHours)
-        Write-Verbose "##vso[task.setvariable variable=$outputStorageContainerSASToken;]$storageContainerSasToken" -Verbose
+        Write-Host "##vso[task.setvariable variable=$outputStorageContainerSASToken;]$storageContainerSasToken"
     }
-    Write-Verbose "Completed Azure File Copy Task for Azure Blob Destination" -Verbose
+    Write-Verbose "Completed Azure File Copy Task for Azure Blob Destination"
     return
 }
 
@@ -148,7 +158,7 @@ try
 {
     # getting azure vms properties(name, fqdn, winrmhttps port)
     $azureVMResourcesProperties = Get-AzureVMResourcesProperties -resourceGroupName $environmentName -connectionType $connectionType `
-    -resourceFilteringMethod $resourceFilteringMethod -machineNames $machineNames -enableCopyPrerequisites $enableCopyPrerequisites
+    -resourceFilteringMethod $resourceFilteringMethod -machineNames $machineNames -enableCopyPrerequisites $enableCopyPrerequisites -connectedServiceName $connectedServiceName
 
     $skipCACheckOption = Get-SkipCACheckOption -skipCACheck $skipCACheck
     $azureVMsCredentials = Get-AzureVMsCredentials -vmsAdminUserName $vmsAdminUserName -vmsAdminPassword $vmsAdminPassword
@@ -158,20 +168,21 @@ try
 
     #copies files on azureVMs 
     Copy-FilesToAzureVMsFromStorageContainer `
-        -storageAccountName $storageAccount -containerName $containerName -containerSasToken $containerSasToken -targetPath $targetPath -azCopyLocation $azCopyLocation `
+        -storageAccountName $storageAccount -containerName $containerName -containerSasToken $containerSasToken -blobStorageEndpoint $blobStorageEndpoint -targetPath $targetPath -azCopyLocation $azCopyLocation `
         -resourceGroupName $environmentName -azureVMResourcesProperties $azureVMResourcesProperties -azureVMsCredentials $azureVMsCredentials `
         -cleanTargetBeforeCopy $cleanTargetBeforeCopy -communicationProtocol $useHttpsProtocolOption -skipCACheckOption $skipCACheckOption `
-        -enableDetailedLoggingString $enableDetailedLoggingString -additionalArguments $additionalArguments -copyFilesInParallel $copyFilesInParallel
+        -enableDetailedLoggingString $enableDetailedLoggingString -additionalArguments $additionalArguments -copyFilesInParallel $copyFilesInParallel -connectionType $connectionType
 }
 catch
 {
     Write-Verbose $_.Exception.ToString() -Verbose
 
-    Write-TaskSpecificTelemetry "UNKNOWNDEP_Error"
+    Write-Telemetry "Task_InternalError" $_.Exception.Message
     throw
 }
 finally
 {
     Remove-AzureContainer -containerName $containerName -storageContext $storageContext
     Write-Verbose "Completed Azure File Copy Task for Azure VMs Destination" -Verbose
+    Trace-VstsLeavingInvocation $MyInvocation
 }

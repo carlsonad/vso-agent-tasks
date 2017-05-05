@@ -11,14 +11,14 @@
   "author": "Microsoft Corporation",
   "version": {
     "Major": 1,
-    "Minor": 0,
-    "Patch": 25
+    "Minor": 117,
+    "Patch": 0
   },
   "demands": [
     "msbuild",
     "visualstudio"
   ],
-  "minimumAgentVersion": "1.83.0",
+  "minimumAgentVersion": "1.95.0",
   "groups": [
     {
       "name": "advanced",
@@ -34,6 +34,21 @@
       "defaultValue": "**\\*.sln",
       "required": true,
       "helpMarkDown": "ms-resource:loc.input.help.solution"
+    },
+    {
+      "name": "vsVersion",
+      "type": "pickList",
+      "label": "ms-resource:loc.input.label.vsVersion",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.vsVersion",
+      "defaultValue": "15.0",
+      "options": {
+        "latest": "Latest",
+        "15.0": "Visual Studio 2017",
+        "14.0": "Visual Studio 2015",
+        "12.0": "Visual Studio 2013",
+        "11.0": "Visual Studio 2012"
+      }
     },
     {
       "name": "msbuildArgs",
@@ -65,6 +80,15 @@
       "required": false
     },
     {
+      "name": "maximumCpuCount",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.maximumCpuCount",
+      "defaultValue": "false",
+      "required": false,
+      "groupName": "advanced",
+      "helpMarkDown": "ms-resource:loc.input.help.maximumCpuCount"
+    },
+    {
       "name": "restoreNugetPackages",
       "type": "boolean",
       "label": "ms-resource:loc.input.label.restoreNugetPackages",
@@ -72,20 +96,6 @@
       "required": false,
       "groupName": "advanced",
       "helpMarkDown": "ms-resource:loc.input.help.restoreNugetPackages"
-    },
-    {
-      "name": "vsVersion",
-      "type": "pickList",
-      "label": "ms-resource:loc.input.label.vsVersion",
-      "required": false,
-      "helpMarkDown": "ms-resource:loc.input.help.vsVersion",
-      "defaultValue": "14.0",
-      "options": {
-        "latest": "Latest",
-        "14.0": "Visual Studio 2015",
-        "12.0": "Visual Studio 2013",
-        "11.0": "Visual Studio 2012"
-      }
     },
     {
       "name": "msbuildArchitecture",
@@ -106,6 +116,16 @@
       "label": "ms-resource:loc.input.label.logProjectEvents",
       "defaultValue": "true",
       "required": false,
+      "groupName": "advanced",
+      "helpMarkDown": "ms-resource:loc.input.help.logProjectEvents"
+    },
+    {
+      "name": "createLogFile",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.createLogFile",
+      "defaultValue": "false",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.createLogFile",
       "groupName": "advanced"
     }
   ],
@@ -113,20 +133,16 @@
   "execution": {
     "PowerShell3": {
       "target": "VSBuild.ps1"
-    },
-    "PowerShell": {
-      "target": "$(currentDirectory)\\LegacyVSBuild.ps1",
-      "argumentFormat": "",
-      "workingDirectory": "$(currentDirectory)"
     }
   },
   "messages": {
     "MSBuildLocationDeprecated0": "ms-resource:loc.messages.MSBuildLocationDeprecated0",
-    "MSBuildNotFoundVersion0Architecture1": "ms-resource:loc.messages.MSBuildNotFoundVersion0Architecture1",
     "MSBuildVersionDeprecated0": "ms-resource:loc.messages.MSBuildVersionDeprecated0",
     "UnexpectedVSVersion0": "ms-resource:loc.messages.UnexpectedVSVersion0",
     "VSLocationDeprecated0": "ms-resource:loc.messages.VSLocationDeprecated0",
     "VSNotFoundTry": "ms-resource:loc.messages.VSNotFoundTry",
-    "VSVersion0NotFoundLookingForLatest": "ms-resource:loc.messages.VSVersion0NotFoundLookingForLatest"
+    "VSVersion0NotFound": "ms-resource:loc.messages.VSVersion0NotFound",
+    "VSVersion0NotFoundFallbackVersion1": "ms-resource:loc.messages.VSVersion0NotFoundFallbackVersion1",
+    "VSVersion15NotFound": "ms-resource:loc.messages.VSVersion15NotFound"
   }
 }

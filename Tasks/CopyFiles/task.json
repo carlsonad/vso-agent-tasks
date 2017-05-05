@@ -3,17 +3,22 @@
     "name": "CopyFiles",
     "friendlyName": "Copy Files",
     "description": "Copy files from source folder to target folder using minimatch patterns (The minimatch patterns will only match file paths, not folder paths)",
-    "helpMarkDown": "[More Information](http://go.microsoft.com/fwlink/?LinkID=708389)",
+    "helpMarkDown": "[More Information](https://go.microsoft.com/fwlink/?LinkID=708389)",
     "category": "Utility",
     "visibility": [
         "Build"
     ],
+    "runsOn": [
+        "Agent",
+        "DeploymentGroup"
+    ],
     "author": "Microsoft Corporation",
     "version": {
-        "Major": 1,
-        "Minor": 0,
-        "Patch": 13
+        "Major": 2,
+        "Minor": 113,
+        "Patch": 1
     },
+    "releaseNotes": "Match pattern consistency.",
     "demands": [],
     "minimumAgentVersion": "1.91.0",
     "groups": [
@@ -30,7 +35,7 @@
             "label": "Source Folder",
             "defaultValue": "",
             "required": false,
-            "helpMarkDown": "The source folder that the copy pattern(s) will be run from.  Empty is the root of the repo.  Use [variables](http://go.microsoft.com/fwlink/?LinkID=550988) if files are not in the repo. Example: $(agent.builddirectory)"
+            "helpMarkDown": "The source folder that the copy pattern(s) will be run from.  Empty is the root of the repo.  Use [variables](https://go.microsoft.com/fwlink/?LinkID=550988) if files are not in the repo. Example: $(agent.builddirectory)"
         },
         {
             "name": "Contents",
@@ -38,7 +43,7 @@
             "label": "Contents",
             "defaultValue": "**",
             "required": true,
-            "helpMarkDown": "File paths to include as part of the copy. Supports multiple lines of minimatch patterns. [More Information](http://go.microsoft.com/fwlink/?LinkID=708389)"
+            "helpMarkDown": "File paths to include as part of the copy. Supports multiple lines of minimatch patterns. [More Information](https://go.microsoft.com/fwlink/?LinkID=708389)"
         },
         {
             "name": "TargetFolder",
@@ -46,7 +51,7 @@
             "label": "Target Folder",
             "defaultValue": "",
             "required": true,
-            "helpMarkDown": "Target folder files will copy to. Use [variables](http://go.microsoft.com/fwlink/?LinkID=550988). Example: $(build.artifactstagingdirectory)"
+            "helpMarkDown": "Target folder or UNC path files will copy to. You can use [variables](http://go.microsoft.com/fwlink/?LinkID=550988). Example: $(build.artifactstagingdirectory)"
         },
         {
             "name": "CleanTargetFolder",
@@ -60,10 +65,19 @@
         {
             "name": "OverWrite",
             "type": "boolean",
-            "label": "Over Write",
+            "label": "Overwrite",
             "defaultValue": "false",
             "required": false,
             "helpMarkDown": "Replace existing file in target folder",
+            "groupName": "advanced"
+        },
+        {
+            "name": "flattenFolders",
+            "type": "boolean",
+            "label": "Flatten Folders",
+            "defaultValue": "false",
+            "required": false,
+            "helpMarkDown": "Flatten the folder structure and copy all files into the specified target folder.",
             "groupName": "advanced"
         }
     ],
@@ -78,6 +92,7 @@
         "FoundNFiles": "found %d files",
         "CleaningTargetFolder": "Cleaning target folder: %s",
         "FileAlreadyExistAt": "File %s already exist at %s",
-        "CopyingTo": "Copying %s to %s"
+        "CopyingTo": "Copying %s to %s",
+        "TargetIsDir": "Unable to copy file %s to %s. The target path already exists as a directory."
     }
 }

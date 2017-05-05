@@ -3,7 +3,7 @@
     "name": "PublishBuildArtifacts",
     "friendlyName": "Publish Build Artifacts",
     "description": "Publish Build artifacts to the server or a file share",
-    "helpMarkDown": "[More Information](http://go.microsoft.com/fwlink/?LinkID=708390)",
+    "helpMarkDown": "[More Information](https://go.microsoft.com/fwlink/?LinkID=708390)",
     "category": "Utility",
     "visibility": [
         "Build"
@@ -12,7 +12,7 @@
     "version": {
         "Major": 1,
         "Minor": 0,
-        "Patch": 28
+        "Patch": 41
     },
     "demands": [],
     "minimumAgentVersion": "1.91.0",
@@ -23,7 +23,7 @@
             "label": "Path to Publish",
             "defaultValue": "",
             "required": true,
-            "helpMarkDown": "Folder or file path to publish.  Can be a fully qualified path or a relative path that relative to repo root, wildcards is not supported. Use [variables](http://go.microsoft.com/fwlink/?LinkID=550988). Example: $(build.artifactstagingdirectory)"
+            "helpMarkDown": "Folder or file path to publish.  Can be a fully qualified path or relative to repo root, wildcards are not supported. Use [variables](https://go.microsoft.com/fwlink/?LinkID=550988). Example: $(build.artifactstagingdirectory)"
         },
         {
             "name": "ArtifactName",
@@ -39,7 +39,7 @@
             "label": "Artifact Type",
             "defaultValue": "",
             "required": true,
-            "helpMarkDown": "The type of the artifact to create.",
+            "helpMarkDown": "The type of artifact to create.",
             "options": {
                 "Container": "Server",
                 "FilePath": "File share"
@@ -63,6 +63,8 @@
         }
     },
     "messages": {
+        "ErrorFileShareLinux": "Cannot publish artifacts from an OSX or Linux agent to a file share. You can change the artifact type to server or use a Windows agent.",
+        "ErrorHostTypeNotSupported": "This task is only supported within a Build job.",
         "PublishBuildArtifactsFailed": "Publish build artifacts failed with error: %s"
     }
 }

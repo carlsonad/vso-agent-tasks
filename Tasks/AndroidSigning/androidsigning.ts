@@ -3,10 +3,6 @@
   Licensed under the MIT license. See LICENSE file in the project root for full license information.
 */
 
-/// <reference path="../../definitions/node.d.ts"/>
-/// <reference path="../../definitions/Q.d.ts" />
-/// <reference path="../../definitions/vsts-task-lib.d.ts" />
-
 import path = require('path');
 import Q = require('q');
 import tl = require('vsts-task-lib/task');
@@ -25,27 +21,29 @@ var jarsigning = (fn: string) => {
     // file must exist
     tl.checkPath(fn, 'file to sign');
 
-    var java_home = tl.getVariable('JAVA_HOME');
-    var jarsigner = path.join(java_home, 'bin', 'jarsigner');
+    var jarsigner = tl.which("jarsigner", false);
+    if (!jarsigner) {
+        var java_home = tl.getVariable('JAVA_HOME');
+        if (!java_home) {
+            onError("JAVA_HOME is not set");
+        }
+
+        jarsigner = path.join(java_home, 'bin', 'jarsigner');
+    }
 
     var jarsignerRunner = tl.createToolRunner(jarsigner);
 
     // Get keystore file for signing
     var keystoreFile = tl.getInput('keystoreFile', true);
-    tl.debug('keystoreFile: ' + keystoreFile);
 
     // Get keystore alias
     var keystoreAlias = tl.getInput('keystoreAlias', true);
-    tl.debug('keystoreAlias: ' + keystoreAlias);
 
     var keystorePass = tl.getInput('keystorePass', false);
-    tl.debug('keystorePass nil?: ' + !keystorePass)
 
     var keyPass = tl.getInput('keyPass', false);
-    tl.debug('keyPass nil?: ' + !keyPass)
 
     var jarsignerArguments = tl.getInput('jarsignerArguments', false);
-    tl.debug("jarsignerArguments: " + jarsignerArguments);
 
     jarsignerRunner.arg(['-keystore', keystoreFile]);
 
@@ -58,7 +56,7 @@ var jarsigning = (fn: string) => {
     }
 
     if (jarsignerArguments) {
-        jarsignerRunner.arg(jarsignerArguments);
+        jarsignerRunner.argString(jarsignerArguments);
     }
 
     var unsignedFn = fn + ".unsigned"; 
@@ -77,7 +75,6 @@ var zipaligning = (fn: string) => {
     tl.checkPath(fn, 'file to zipalign');
 
     var zipaligner = tl.getInput('zipalignLocation', false);
-    tl.debug("zipalign tool: " + zipaligner);
 
     // if the tool path is not set, let's find one (anyone) from the SDK folder
     if (!zipaligner) {
@@ -139,15 +136,12 @@ var process = (fn: string) => {
 //-----------------------------------------------------------------------------
 // Get files to be signed 
 var filesPattern = tl.getInput('files', true);
-tl.debug('filesPattern: ' + filesPattern); 
 
 // Signing the APK?
 var jarsign: boolean = tl.getBoolInput('jarsign');
-tl.debug('jarsign: ' + jarsign);
 
 // Zipaligning the APK?
 var zipalign: boolean = tl.getBoolInput('zipalign');
-tl.debug('zipalign: ' + zipalign);
 
 // Resolve files for the specified value or pattern
 if (filesPattern.indexOf('*') == -1 && filesPattern.indexOf('?') == -1) {

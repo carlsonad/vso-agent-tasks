@@ -1,16 +1,20 @@
-# Visual Studio Test using Test Agent Task
+# Run Functional Tests Task
 
-###Overview
-The Visual Studio Test using Test Agent task should be used when you want to run tests on remote machines and you cannot run tests on build machine. Typical scenarios – tests that require additional installations on the test machines like different browsers for Selenium tests, running Coded UI Tests or a specific OS configuration or execute lots of unit tests faster on multiple machines etc. You can run unit tests, integration tests, functional tests – any test that you can execute using vstest runner. Given multiple machines in the Test Machine Group, the task can do parallel distributed execution of your tests. Parallelism is at the test assembly level. To use this task, *it needs to be preceded with “Visual Studio Test Agent Deployment” task*.
-To learn more about the general usage of the task, please see https://msdn.microsoft.com/en-us/library/mt270062.aspx and http://blogs.msdn.com/b/visualstudioalm/archive/2015/06/28/10618066.aspx
+### Overview
+The Run Functional Tests task should be used when you want to run tests on one or more remote machines and you cannot run tests on build machine. Typical scenarios – tests that require additional installations on the test machines like different browsers for Selenium tests, running Coded UI Tests or a specific OS configuration or execute lots of unit tests faster on multiple machines etc. You can run unit tests, integration tests, functional tests – any test that you can run using vstest.console.exe can be run using this task. To use this task, *it needs to be preceded with “Visual Studio Test Agent Deployment” task*.
+To learn more about the general usage of the task, please see https://msdn.microsoft.com/en-us/library/mt270062.aspx and https://blogs.msdn.com/b/visualstudioalm/archive/2015/06/28/10618066.aspx
 
-###The different parameters of the task are explained below:
+### The different parameters of the task are explained below:
 
-- **Machines:**	Required Field. Provide the comma seperated list of machine names or "Azure Resource Group / Test Machine Group" name or Variable name containing the list of machines which should be used to run tests.
+#### Setup Options
+- **Machines:**	Required Field. Provide a comma separated list of machine names or "Azure Resource Group" name or Variable name containing the list of machines which should be used to run tests.
 
-- **Test Drop Location:**	Required Field. Location on the Test machine(s) where the test binaries have been copied to.  ‘Windows Machine File Copy’ task or ‘Azure File Copy’ task (for Azure machines) can be used. System Environment Variables from the agent machines can also be used in specifying the drop location. For example, c:\tests or %systemdrive%\Tests
+- **Test drop location:** Required Field. Location on the test machine(s) where the test binaries have been copied to.  ‘Windows Machine File Copy’ task or ‘Azure File Copy’ task (for Azure machines) can be used to copy the test binaries. System Environment Variables from the agent machines can also be used in specifying the drop location. For example, c:\tests or %systemdrive%\Tests
 
-- **Test Assembly:**	Required Field. This field specifies the test assemblies(s) from which the tests should be picked. 
+#### Execution Options
+- **Test selection:** You can run tests by specifying test files and assemblies or using Test Plan/Test Suite. 
+
+- **Test assembly:** Required Field. This field specifies the test assemblies from which the tests should be picked. 
 	*	Wildcards can be used
 	*	Multiple paths can be specified separated by a semicolon
 	*	Paths are relative to the root directory of the test drop location
@@ -18,26 +22,37 @@ To learn more about the general usage of the task, please see https://msdn.micro
 For example, `**\commontests\*test*.dll; **\frontendtests\*test*.dll;`
 
 
-- **Test Filter Criteria:**	Filters tests from within the test assembly files. For example, “Owner=james&Priority=1”. This option works the same way as the console option /TestCaseFilter for vstest.console.exe 
+- **Test filter criteria:**	Filters tests from within the test assembly files. For example, “Owner=james&Priority=1”. This option works the same way as the console option /TestCaseFilter for vstest.console.exe 
 For more information, see https://msdn.microsoft.com/en-us/library/jj155796.aspx
 
-- **Platform:**	Build Platform against which the Test Run should be reported. Field is used for reporting purposes only. For example, x64 or x86. If you are using the Deployment – Build, Deploy and Distributed Test template, this is already defined for you. Alternatively, if you have defined a variable for platform in your Build task, use that here.
+- **Test plan:** Select the test plan. 
 
-- **Configuration:**	Build Configuration against which the Test Run should be reported. Field is used for reporting purposes only. For example, Debug or Release. If you are using the Deployment – Build, Deploy and Distributed Test template, this is already defined for you. Alternatively, if you have defined a variable for Configuration in your Build task, use that here.
+- **Test suite:** Select one or more test suites within the test plan that contains automated tests.
+
+- **Test configuration:** Select a test configuration to report against.
+
+- **Run settings file:** File Path to a runsettings or testsettings file can be specified here. The path can be to a file in the repository or a path to a file on the Build Agent machine. Use $(Build.SourcesDirectory) to access the root project folder. For more information on these files, please see https://msdn.microsoft.com/library/jj635153.aspx
+
+- **Override testrun parameters:** Override parameters defined in the TestRunParameters section of the runsettings file. For example: Platform=$(platform);Port=8080 
+For more information, please see https://blogs.msdn.com/b/visualstudioalm/archive/2015/09/04/supplying-run-time-parameters-to-tests.aspx
+
+- **Code coverage enabled:**	If set, this will collect code coverage information during the run and upload the results to the server. This is supported for .net and C++ projects only. To customize Code Coverage analysis and manage inclusions and exclusions, please see https://msdn.microsoft.com/library/jj159530.aspx 
+
+- **Distribute tests based on:** Specify how the tests should be distributed. 
+
+#### Reporting Options
+-**Test run title:** Provide a name for the test run. 
+
+- **Build platform:**	Build Platform against which the Test Run should be reported. Field is used for reporting purposes only. For example, x64 or x86. If you are using the Deployment – Build, Deploy and Distributed Test template, this is already defined for you. Alternatively, if you have defined a variable for platform in your Build task, use that here.
+
+- **Build configuration:**	Build Configuration against which the Test Run should be reported. Field is used for reporting purposes only. For example, Debug or Release. If you are using the Deployment – Build, Deploy and Distributed Test template, this is already defined for you. Alternatively, if you have defined a variable for Configuration in your Build task, use that here.
  
-- **Run Settings File:** File Path to a runsettings or testsettings file can be specified here. The path can be to a file in the repository or a path to a file on the Build Agent machine. Use $(Build.SourcesDirectory) to access the root project folder. For more information on these files, please see https://msdn.microsoft.com/library/jj635153.aspx
-
-- **Override TestRun Parameters:**	Override parameters defined in the TestRunParameters section of the runsettings file. For example: Platform=$(platform);Port=8080 
-For more information, please see http://blogs.msdn.com/b/visualstudioalm/archive/2015/09/04/supplying-run-time-parameters-to-tests.aspx
-
-- **Test Configurations:**	Report the configuration on which the Test case was run. Field is used for reporting purposes only. Syntax: <Expression for Test method name(s)> : <Configuration ID from MTM>. 
+- **Test configurations:**	Report the configuration on which the Test case was run. Field is used for reporting purposes only. Syntax: <Expression for Test method name(s)> : <Configuration ID from MTM>. 
 For example, FullyQualifiedName~Chrome:12 will report all test methods which have Chrome in their Fully Qualified name and map them to Configuration ID 12 defined in MTM. Use DefaultTestConfiguration:<Id> as a catch all
 
-- **Code Coverage Enabled:**	If set, this will collect code coverage information during the run and upload the results to the server. This is supported for .net and C++ projects only. To customize Code Coverage analysis and manage inclusions and exclusions, please see https://msdn.microsoft.com/library/jj159530.aspx 
-	
-- **Application Under Test Machines:**	Machine(s) on which the Application Under Test is deployed. This is used to collect Code Coverage data from those machines. Use this in conjunction with Code Coverage Enabled checkbox. 
+- **Application under test machines:**	Machine(s) on which the Application Under Test is deployed. This is used to collect Code Coverage data from those machines. Use this in conjunction with Code Coverage Enabled checkbox. 
 
-- **Test Adapters:**	There is no explicit field to specify Test Adapter path in the task. The task automatically searches for "packages" directory that exists in the same folder as the .sln file (nuget restored directory structure). If your adapters are in a different directory or you did not copy over the source files, use a runsettings file with TestAdaptersPaths as described at https://msdn.microsoft.com/en-us/library/jj635153.aspx
+Note: There is no explicit field to specify path to test adapters in the task. The task automatically searches for "packages" directory that exists in the same folder as the .sln file (nuget restored directory structure). If your adapters are in a different directory or you did not copy over the source files, use a runsettings file with TestAdaptersPaths as described at https://msdn.microsoft.com/en-us/library/jj635153.aspx
 
 
 ### Scenarios Supported
@@ -87,7 +102,7 @@ If this is not the case, testagent should be manually downloaded from official m
 
 -	**Usage Error Conditions**
 
-	a.	Using same test machines across different machine groups, and running builds (with any BDT tasks) parallely against those machine groups is not supported.
+	a.	Using same test machines across different machine groups, and running builds (with any BDT tasks) parallelly against those machine groups is not supported.
 	
 	b.	Cancelling an inprogress build/release with BDT tasks is not supported. If you do cancel, your subsequent builds may misbehave.
 	
@@ -99,10 +114,10 @@ If this is not the case, testagent should be manually downloaded from official m
 
 ### Here is a list of other tasks that can be used with this task in the Build-Deploy-Test (BDT) workflow:
 
-1.	*Deploy Azure Resource Group*: https://github.com/Microsoft/vso-agent-tasks/tree/master/Tasks/DeployAzureResourceGroup
-2.	*Azure File Copy*: https://github.com/Microsoft/vso-agent-tasks/tree/master/Tasks/AzureFileCopy
-3.	*Windows Machine File Copy*: https://github.com/Microsoft/vso-agent-tasks/tree/master/Tasks/WindowsMachineFileCopy
-4.	*PowerShell on Target Machines*: https://github.com/Microsoft/vso-agent-tasks/tree/master/Tasks/PowerShellOnTargetMachines
-5.	*Deploy Visual Studio Test Agent*: https://github.com/Microsoft/vso-agent-tasks/tree/master/Tasks/DeployVisualStudioTestAgent
+1.	*Deploy Azure Resource Group*: https://github.com/Microsoft/vsts-tasks/tree/master/Tasks/DeployAzureResourceGroup
+2.	*Azure File Copy*: https://github.com/Microsoft/vsts-tasks/tree/master/Tasks/AzureFileCopy
+3.	*Windows Machine File Copy*: https://github.com/Microsoft/vsts-tasks/tree/master/Tasks/WindowsMachineFileCopy
+4.	*PowerShell on Target Machines*: https://github.com/Microsoft/vsts-tasks/tree/master/Tasks/PowerShellOnTargetMachines
+5.	*Deploy Visual Studio Test Agent*: https://github.com/Microsoft/vsts-tasks/tree/master/Tasks/DeployVisualStudioTestAgent
 
 <br/>

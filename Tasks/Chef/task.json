@@ -3,20 +3,23 @@
     "name": "Chef",
     "friendlyName": "Chef",
     "description": "Deploy to Chef environments by editing environment attributes",
-    "helpMarkDown": "[More Information](https://github.com/Microsoft/vso-agent-tasks/blob/master/Tasks/Chef/README.md)",
+    "helpMarkDown": "[More Information](https://github.com/Microsoft/vsts-tasks/blob/master/Tasks/Chef/README.md)",
     "category": "Deploy",
     "visibility": [
-                "Preview",
-                "Build",
-                "Release"
-                  ],
+        "Preview",
+        "Build",
+        "Release"
+    ],
+    "runsOn": [
+        "Agent"
+    ],
     "author": "Microsoft Corporation",
     "version": {
         "Major": 1,
         "Minor": 0,
-        "Patch": 10
+        "Patch": 15
     },
-    "demands" : [
+    "demands": [
         "Chef",
         "KnifeReporting",
         "DotNetFramework"

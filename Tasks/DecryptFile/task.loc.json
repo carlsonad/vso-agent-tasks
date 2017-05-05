@@ -8,11 +8,15 @@
     "Build",
     "Release"
   ],
+  "runsOn": [
+    "Agent",
+    "DeploymentGroup"
+  ],
   "author": "Microsoft Corporation",
   "version": {
     "Major": 1,
-    "Minor": 0,
-    "Patch": 7
+    "Minor": 112,
+    "Patch": 2
   },
   "groups": [
     {
@@ -66,12 +70,11 @@
     "Node": {
       "target": "decrypt.js",
       "argumentFormat": ""
-    },
-    "PowerShell": {
-      "target": "$(currentDirectory)\\decrypt.ps1",
-      "argumentFormat": "",
-      "workingDirectory": "$(currentDirectory)"
     }
+  },
+  "messages": {
+    "OpenSSLReturnCode": "ms-resource:loc.messages.OpenSSLReturnCode",
+    "OpenSSLFailed": "ms-resource:loc.messages.OpenSSLFailed"
   },
   "helpMarkDown": "ms-resource:loc.helpMarkDown"
 }

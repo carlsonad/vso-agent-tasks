@@ -22,10 +22,21 @@ param (
         $filesToCopy = Split-Path $sourcePath -Leaf
     }
 
-    Get-ChildItem $env:AGENT_HOMEDIRECTORY\Agent\Worker\*.dll | % {
-    [void][reflection.assembly]::LoadFrom( $_.FullName )
-    Write-Verbose "Loading .NET assembly:`t$($_.name)" -Verbose
+    if(Test-Path "$env:AGENT_HOMEDIRECTORY\Agent\Worker")
+    {
+        Get-ChildItem $env:AGENT_HOMEDIRECTORY\Agent\Worker\*.dll | % {
+        [void][reflection.assembly]::LoadFrom( $_.FullName )
+        Write-Verbose "Loading .NET assembly:`t$($_.name)" -Verbose
+        }
     }
+    else
+    {
+        if(Test-Path "$env:AGENT_HOMEDIRECTORY\externals\vstshost")
+        {
+            [void][reflection.assembly]::LoadFrom("$env:AGENT_HOMEDIRECTORY\externals\vstshost\Microsoft.TeamFoundation.DistributedTask.Task.LegacySDK.dll")
+        }
+    }
+    
     import-module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
     
     function ThrowError
@@ -34,11 +45,9 @@ param (
             [string]$errorMessage,
             [string]$fqdn
         )
-    
-        $readmelink = "http://aka.ms/windowsfilecopyreadme"
-        $helpMessage = (Get-LocalizedString -Key "For more info please refer to {0}" -ArgumentList $readmelink)
+        
         $failMessage = "Copying failed for resource : $fqdn"
-        throw "$failMessage`n$errorMessage`n$helpMessage"
+        throw "$failMessage`n$errorMessage"
     }
     
     function Validate-Null(
@@ -66,7 +75,19 @@ param (
             ThrowError -errorMessage (Get-LocalizedString -Key "Parameter '{0}' cannot be null or empty." -ArgumentList "credential")
         }   
     }
-    
+
+    function Get-DownLevelLogonName(
+        [string]$fqdn,
+        [string]$userName
+        )
+    {
+        if($userName  -like '.\*') {
+            $userName = $userName.replace(".\","\")
+            $userName = $fqdn+$userName
+        }
+        return $userName
+    }
+
     function Replace-First(
         [string]$text,
         [string]$search, 
@@ -140,19 +161,34 @@ param (
         return ""
     }
     
+    function Get-NetExeCommand
+    {
+        $netExePath = Join-Path -path (get-item env:\windir).value -ChildPath system32\net.exe
+        if(Test-Path $netExePath)
+        {
+            Write-Verbose "Found the net exe path $netExePath. Net command will be $netExePath"
+            return $netExePath
+        }
+        
+        Write-Verbose "Unable to get the path for net.exe. Net command will be 'net'"
+        return 'net'
+    }
+    
     $machineShare = Get-MachineShare -fqdn $fqdn -targetPath $targetPath    
     $destinationNetworkPath = Get-DestinationNetworkPath -targetPath $targetPath -machineShare $machineShare
     
     Validate-Credential $credential
-    $userName = $($credential.UserName)
+    $userName = Get-DownLevelLogonName -fqdn $fqdn -userName $($credential.UserName)
     $password = $($credential.Password) 
+    
+    $netExeCommand = Get-NetExeCommand
 
     if($machineShare)
     {
-        $command = "net use `"$machineShare`""
+        $command = "$netExeCommand use `"$machineShare`""
         if($userName)
         {
-            $command += " /user:`"$userName`" `'$password`'"
+            $command += " /user:`"$userName`" `'$($password -replace "['`]", '$&$&')`'"
         }
         $command += " 2>&1"
         
@@ -196,8 +232,8 @@ param (
     finally
     {
         if($machineShare)
-        {
-            net use $machineShare /D /Y;  
+        {            
+            $dtl_deleteMap = iex "$netExeCommand use `"$machineShare`" /D /Y";  
         }
     }
 }

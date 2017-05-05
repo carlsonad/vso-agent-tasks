@@ -1,157 +1,164 @@
-﻿/// <reference path="../../definitions/vsts-task-lib.d.ts" />
-
-import fs = require('fs');
-import path = require('path');
+﻿import path = require('path');
 import tl = require('vsts-task-lib/task');
-import trm = require('vsts-task-lib/toolrunner');
-import Q = require('q');
-var xcutils = require('./xcode-task-utils.js');
+import sign = require('ios-signing-common/ios-signing-common');
+import msbuildhelpers = require('msbuildhelpers/msbuildhelpers');
 
-// Get build inputs
-var solutionPath = tl.getPathInput('solution', true, true);
-var configuration = tl.getInput('configuration', true);
-var args = tl.getInput('args');
-var packageApp = tl.getBoolInput('packageApp');
-var buildForSimulator = tl.getBoolInput('forSimulator');
-var device = (buildForSimulator) ? 'iPhoneSimulator' : 'iPhone';
-tl.debug('Device: ' + device);
+import { ToolRunner } from 'vsts-task-lib/toolrunner';
 
-// Get path to xbuild
-var xbuildToolPath = tl.which('xbuild');
-var xbuildLocation = tl.getInput('mdtoolLocation', false);
-if (xbuildLocation) {
-    xbuildToolPath = xbuildLocation + '/xbuild';
-    tl.checkPath(xbuildToolPath, 'xbuild');
-}
-if (!xbuildToolPath) {
-    tl.error('xbuild was not found in the path.');
-    tl.exit(1);
-}
+async function run() {
 
-// Find location of nuget
-var nugetPath = tl.which('nuget');
-if (!nugetPath) {
-    tl.error('nuget was not found in the path.');
-    tl.exit(1);
-}
+    let codesignKeychain: string;
+    let profileToDelete: string;
 
-//Process working directory
-var buildSourceDirectory = tl.getVariable('build.sourceDirectory') || tl.getVariable('build.sourcesDirectory');
-var cwd = tl.getInput('cwd') || buildSourceDirectory;
-tl.cd(cwd);
+    try {
+        tl.setResourcePath(path.join(__dirname, 'task.json'));
 
-// Prepare function for tool execution failure
-var onFailedExecution = function (err) {
-    // Error executing
-    tl.debug('ToolRunner execution failure: ' + err);
-    tl.exit(1);
-}
-var deleteKeychain:trm.ToolRunner = null;
-var deleteProvProfile:trm.ToolRunner = null;
-var provProfileUUID = null;
-var signIdentity = null;
+        // Get build inputs
+        let solutionPath: string = tl.getPathInput('solution', true, true);
+        let configuration: string = tl.getInput('configuration', true);
+        let clean: boolean = tl.getBoolInput('clean');
+        let args: string = tl.getInput('args');
+        let packageApp: boolean = tl.getBoolInput('packageApp');
+        let buildForSimulator: boolean = tl.getBoolInput('forSimulator');
+        let device: string = (buildForSimulator) ? 'iPhoneSimulator' : 'iPhone';
+        tl.debug('device: ' + device);
+        let cwd: string = tl.getInput('cwd');
+        let runNugetRestore: boolean = tl.getBoolInput('runNugetRestore');
 
-function iosIdentity() {
-
-    var input = {
-        cwd: cwd,
-        unlockDefaultKeychain: tl.getBoolInput('unlockDefaultKeychain', false),
-        defaultKeychainPassword: tl.getInput('defaultKeychainPassword', false),
-        p12: tl.getPathInput('p12', false, false),
-        p12pwd: tl.getInput('p12pwd', false),
-        iosSigningIdentity: tl.getInput('iosSigningIdentity', false)
-    }
-
-    return xcutils.determineIdentity(input)
-        .then(function (result:any) {
-            if (result.identity) {
-                tl.debug('found identity = ' + result.identity);
-                signIdentity = result.identity;
+        // find the build tool path based on the build tool and location inputs
+        let buildTool: string = tl.getInput('buildTool');
+        let buildToolLocation: string = tl.getInput('mdtoolLocation', false);
+        let buildToolPath: string;
+        if (buildToolLocation) {
+            // location is specified
+            buildToolPath = buildToolLocation;
+            if (buildTool === 'xbuild' && !buildToolLocation.toLowerCase().endsWith('xbuild')) {
+                buildToolPath = path.join(buildToolLocation, 'xbuild');
+            }
+            if (buildTool === 'msbuild' && !buildToolLocation.toLowerCase().endsWith('msbuild')) {
+                buildToolPath = path.join(buildToolLocation, 'msbuild');
+            }
+        } else {
+            // no build tool path is supplied, check PATH
+            if (buildTool === 'msbuild') {
+                // check for msbuild 15 or higher, if not fall back to xbuild
+                buildToolPath = await msbuildhelpers.getMSBuildPath('15.0');
             } else {
-                tl.debug('No explicit signing identity specified in task.')
+                buildToolPath = tl.which('xbuild', true);
             }
-            if (result.keychain) {
-                tl.debug('Found keychaiin = ' + result.keychain);
+        }
+        tl.checkPath(buildToolPath, 'build tool');
+        tl.debug('Build tool path = ' + buildToolPath);
+
+        if (clean) {
+            let cleanBuildRunner: ToolRunner = tl.tool(buildToolPath);
+            cleanBuildRunner.arg(solutionPath);
+            cleanBuildRunner.argIf(configuration, '/p:Configuration=' + configuration);
+            cleanBuildRunner.argIf(device, '/p:Platform=' + device);
+            cleanBuildRunner.arg('/t:Clean');
+            await cleanBuildRunner.exec();
+        }
+
+        if (runNugetRestore) {
+            // Find location of nuget
+            let nugetPath: string = tl.which('nuget', true);
+
+            // Restore NuGet packages of the solution
+            let nugetRunner: ToolRunner = tl.tool(nugetPath);
+            nugetRunner.arg(['restore', solutionPath]);
+            await nugetRunner.exec();
+        }
+
+        //Process working directory
+        let workingDir: string = cwd || tl.getVariable('System.DefaultWorkingDirectory');
+        tl.cd(workingDir);
+
+        let signMethod: string = tl.getInput('signMethod', false);
+        let provProfileUUID: string = null;
+        let signIdentity: string = null;
+
+        if (signMethod === 'file') {
+            let p12: string = tl.getPathInput('p12', false, false);
+            let p12pwd: string = tl.getInput('p12pwd', false);
+            let provProfilePath: string = tl.getPathInput('provProfile', false);
+            let removeProfile: boolean = tl.getBoolInput('removeProfile', false);
+
+            if (tl.filePathSupplied('p12') && tl.exist(p12)) {
+                p12 = tl.resolve(cwd, p12);
+                tl.debug('cwd = ' + cwd);
+                let keychain: string = tl.resolve(cwd, '_xamariniostasktmp.keychain');
+                let keychainPwd: string = '_xamariniostask_TmpKeychain_Pwd#1';
+
+                //create a temporary keychain and install the p12 into that keychain
+                tl.debug('installing cert in temp keychain');
+                await sign.installCertInTemporaryKeychain(keychain, keychainPwd, p12, p12pwd, false);
+                codesignKeychain = keychain;
+
+                //find signing identity
+                signIdentity = await sign.findSigningIdentity(keychain);
             }
-            tl.debug('deleteKeychain = ' + result.deleteCommand);
-            deleteKeychain = result.deleteCommand;
-        });
-}
 
+            //determine the provisioning profile UUID
+            if (tl.filePathSupplied('provProfile') && tl.exist(provProfilePath)) {
+                provProfileUUID = await sign.getProvisioningProfileUUID(provProfilePath);
 
-function iosProfile() {
-    var input = {
-        cwd: cwd,
-        provProfileUuid: tl.getInput('provProfileUuid', false),
-        provProfilePath: tl.getPathInput('provProfile', false),
-        removeProfile: tl.getBoolInput('removeProfile', false)
+                if (removeProfile && provProfileUUID) {
+                    profileToDelete = provProfileUUID;
+                }
+            }
+        } else if (signMethod === 'id') {
+            let unlockDefaultKeychain: boolean = tl.getBoolInput('unlockDefaultKeychain');
+            let defaultKeychainPassword: string = tl.getInput('defaultKeychainPassword');
+            if (unlockDefaultKeychain) {
+                let defaultKeychain: string = await sign.getDefaultKeychainPath();
+                await sign.unlockKeychain(defaultKeychain, defaultKeychainPassword);
+            }
+
+            signIdentity = tl.getInput('iosSigningIdentity');
+            provProfileUUID = tl.getInput('provProfileUuid');
+        }
+
+        // Prepare xbuild build command line
+        let buildRunner: ToolRunner = tl.tool(buildToolPath);
+        buildRunner.arg(solutionPath);
+        buildRunner.argIf(configuration, '/p:Configuration=' + configuration);
+        buildRunner.argIf(device, '/p:Platform=' + device);
+        buildRunner.argIf(packageApp, '/p:BuildIpa=true');
+        if (args) {
+            buildRunner.line(args);
+        }
+        buildRunner.argIf(codesignKeychain, '/p:CodesignKeychain=' + codesignKeychain);
+        buildRunner.argIf(signIdentity, '/p:Codesignkey=' + signIdentity);
+        buildRunner.argIf(provProfileUUID, '/p:CodesignProvision=' + provProfileUUID);
+
+        // Execute build
+        await buildRunner.exec();
+
+        tl.setResult(tl.TaskResult.Succeeded, tl.loc('XamariniOSSucceeded'));
+
+    } catch (err) {
+        tl.setResult(tl.TaskResult.Failed, tl.loc('XamariniOSFailed', err));
+    } finally {
+        //clean up the temporary keychain, so it is not used to search for code signing identity in future builds
+        if (codesignKeychain) {
+            try {
+                await sign.deleteKeychain(codesignKeychain);
+            } catch (err) {
+                tl.debug('Failed to delete temporary keychain. Error = ' + err);
+                tl.warning(tl.loc('TempKeychainDeleteFailed', codesignKeychain));
+            }
+        }
+
+        //delete provisioning profile if specified
+        if (profileToDelete) {
+            try {
+                await sign.deleteProvisioningProfile(profileToDelete);
+            } catch (err) {
+                tl.debug('Failed to delete provisioning profile. Error = ' + err);
+                tl.warning(tl.loc('ProvProfileDeleteFailed', profileToDelete));
+            }
+        }
     }
-
-    return xcutils.determineProfile(input)
-        .then(function (result:any) {
-            if (result.uuid) {
-                tl.debug('PROVISIONING_PROFILE=' + result.uuid);
-                provProfileUUID = result.uuid;
-            }
-            tl.debug('deleteProvProfile = ' + result.deleteCommand);
-            deleteProvProfile = result.deleteCommand;
-        });
 }
 
-function processSigningInputs() {
-    return iosIdentity().then(iosProfile);
-}
-
-// Restore NuGet packages of the solution
-var nugetRunner = tl.createToolRunner(nugetPath);
-nugetRunner.arg('restore');
-nugetRunner.pathArg(solutionPath);
-nugetRunner.exec()
-    .then(function (code) {
-        processSigningInputs()
-            .then(function (code) {
-                // Prepare build command line
-                var xbuildRunner = tl.createToolRunner(xbuildToolPath);
-                xbuildRunner.pathArg(solutionPath);
-                if (configuration) {
-                    xbuildRunner.arg('/p:Configuration="' + configuration + '"');
-                }
-                if (device) {
-                    xbuildRunner.arg('/p:Platform="' + device + '"');
-                }
-                if (packageApp) {
-                    xbuildRunner.arg('/p:BuildIpa=true');
-                }
-                if (args) {
-                    xbuildRunner.arg(args);
-                }
-                if (provProfileUUID) {
-                    xbuildRunner.arg('/p:CodesignProvision="' + provProfileUUID + '"');
-                }
-                if (signIdentity) {
-                    xbuildRunner.arg('/p:Codesignkey="' + signIdentity + '"');
-                }
-                // Execute build
-                xbuildRunner.exec()
-                    .fin(function () {
-                        tl.debug('deleteKeychain = ' + deleteKeychain);
-                        tl.debug('deleteProvProfile = ' + deleteProvProfile);
-                        if (deleteKeychain) {
-                            tl.debug('Delete keychain');
-                            deleteKeychain.exec(null)
-                                .then(function (code) {
-                                    if (deleteProvProfile) {
-                                        tl.debug('Delete provisioning profile');
-                                        deleteProvProfile.exec(null)
-                                            .then(function (code) {
-                                                tl.exit(code);
-                                            })
-                                    }
-                                })
-                        }
-                    })
-                    .fail(onFailedExecution) //xbuild
-            })
-            .fail(onFailedExecution) //process signing inputs
-    })
-    .fail(onFailedExecution) //NuGet
+run();

@@ -12,9 +12,9 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 21
+    "Patch": 36
   },
-  "minimumAgentVersion": "1.83.0",
+  "minimumAgentVersion": "1.95.0",
   "groups": [
     {
       "name": "advanced",
@@ -35,7 +35,7 @@
       "name": "SearchPattern",
       "type": "string",
       "label": "ms-resource:loc.input.label.SearchPattern",
-      "defaultValue": "**\\bin\\**\\*.pdb",
+      "defaultValue": "**/bin/**/*.pdb",
       "required": true,
       "helpMarkDown": "ms-resource:loc.input.help.SearchPattern"
     },
@@ -106,17 +106,13 @@
   "execution": {
     "PowerShell3": {
       "target": "PublishSymbols.ps1"
-    },
-    "PowerShell": {
-      "target": "$(currentDirectory)\\LegacyPublishSymbols.ps1",
-      "argumentFormat": "",
-      "workingDirectory": "$(currentDirectory)"
     }
   },
   "messages": {
     "CleanedUpSemaphoreFile0": "ms-resource:loc.messages.CleanedUpSemaphoreFile0",
     "CleanUpSemaphoreFile0Error1": "ms-resource:loc.messages.CleanUpSemaphoreFile0Error1",
     "Error0AccessingSemaphoreFile1Retrying2Seconds": "ms-resource:loc.messages.Error0AccessingSemaphoreFile1Retrying2Seconds",
+    "FailedToLoadDbghelpDllFrom0ErrorCode1": "ms-resource:loc.messages.FailedToLoadDbghelpDllFrom0ErrorCode1",
     "Found0Files": "ms-resource:loc.messages.Found0Files",
     "FreeLibraryDbghelpDllError0": "ms-resource:loc.messages.FreeLibraryDbghelpDllError0",
     "NoFilesForIndexing": "ms-resource:loc.messages.NoFilesForIndexing",

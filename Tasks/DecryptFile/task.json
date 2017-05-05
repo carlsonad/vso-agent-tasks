@@ -8,11 +8,15 @@
         "Build",
         "Release"
     ],
+    "runsOn": [
+        "Agent",
+        "DeploymentGroup"
+    ],
     "author": "Microsoft Corporation",
     "version": {
         "Major": 1,
-        "Minor": 0,
-        "Patch": 7
+        "Minor": 112,
+        "Patch": 2
     },
     "groups": [
         {
@@ -29,7 +33,7 @@
             "label": "Cypher",
             "defaultValue": "des3",
             "required": true,
-            "helpMarkDown": "Encryption cypher to use. See [cypher suite names](http://go.microsoft.com/fwlink/?LinkID=627129) for a complete list of possible values."
+            "helpMarkDown": "Encryption cypher to use. See [cypher suite names](https://go.microsoft.com/fwlink/?LinkID=627129) for a complete list of possible values."
         },
         {
             "name": "inFile",
@@ -66,11 +70,10 @@
         "Node": {
             "target": "decrypt.js",
             "argumentFormat": ""
-        },
-        "PowerShell": {
-            "target": "$(currentDirectory)\\decrypt.ps1",
-            "argumentFormat": "",
-            "workingDirectory": "$(currentDirectory)"
         }
+    },
+    "messages": {
+        "OpenSSLReturnCode": "openssl exited with return code: %d",
+        "OpenSSLFailed": "openssl failed with error: %s"
     }
 }

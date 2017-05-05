@@ -9,11 +9,15 @@
     "Build",
     "Release"
   ],
+  "runsOn": [
+    "Agent",
+    "DeploymentGroup"
+  ],
   "author": "Microsoft Corporation",
   "version": {
     "Major": 1,
-    "Minor": 0,
-    "Patch": 33
+    "Minor": 117,
+    "Patch": 1
   },
   "demands": [
     "ant"
@@ -42,7 +46,7 @@
       "name": "antBuildFile",
       "type": "filePath",
       "label": "ms-resource:loc.input.label.antBuildFile",
-      "defaultValue": "",
+      "defaultValue": "build.xml",
       "required": true,
       "helpMarkDown": "ms-resource:loc.input.help.antBuildFile"
     },
@@ -59,7 +63,8 @@
       "type": "string",
       "label": "ms-resource:loc.input.label.targets",
       "defaultValue": "",
-      "required": false
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.targets"
     },
     {
       "name": "publishJUnitResults",
@@ -100,8 +105,8 @@
       "helpMarkDown": "ms-resource:loc.input.help.codeCoverageTool",
       "options": {
         "None": "None",
-        "JaCoCo": "JaCoCo",
-        "Cobertura": "Cobertura"
+        "Cobertura": "Cobertura",
+        "JaCoCo": "JaCoCo"
       }
     },
     {
@@ -132,6 +137,16 @@
       "required": false,
       "groupName": "codeCoverage",
       "helpMarkDown": "ms-resource:loc.input.help.srcDirectories",
+      "visibleRule": "codeCoverageTool != None"
+    },
+    {
+      "name": "failIfCoverageEmpty",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.failIfCoverageEmpty",
+      "defaultValue": "false",
+      "required": false,
+      "groupName": "codeCoverage",
+      "helpMarkDown": "ms-resource:loc.input.help.failIfCoverageEmpty",
       "visibleRule": "codeCoverageTool != None"
     },
     {
@@ -200,14 +215,12 @@
     "Node": {
       "target": "anttask.js",
       "argumentFormat": ""
-    },
-    "PowerShell": {
-      "target": "$(currentDirectory)\\ant.ps1",
-      "argumentFormat": "",
-      "workingDirectory": "$(currentDirectory)",
-      "platforms": [
-        "windows"
-      ]
     }
+  },
+  "messages": {
+    "LocateJVMBasedOnVersionAndArch": "ms-resource:loc.messages.LocateJVMBasedOnVersionAndArch",
+    "FailedToLocateSpecifiedJVM": "ms-resource:loc.messages.FailedToLocateSpecifiedJVM",
+    "DiscontinueAntCodeCoverage": "ms-resource:loc.messages.DiscontinueAntCodeCoverage",
+    "NoCodeCoverage": "ms-resource:loc.messages.NoCodeCoverage"
   }
 }

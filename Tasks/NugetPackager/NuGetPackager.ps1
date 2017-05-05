@@ -1,7 +1,12 @@
 param(
     [string]$searchPattern,
     [string]$outputdir,
+    [string]$includeReferencedProjects,
     [string]$versionByBuild,
+    [string]$versionEnvVar,
+    [string]$requestedMajorVersion,
+    [string]$requestedMinorVersion,
+    [string]$requestedPatchVersion,    
     [string]$configurationToPack,
     [string]$buildProperties,
     [string]$nuGetAdditionalArgs,
@@ -18,12 +23,32 @@ foreach($key in $PSBoundParameters.Keys)
 Write-Verbose "Importing modules"
 import-module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
 import-module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
-$b_versionByBuild = Convert-String $versionByBuild Boolean    
+
+$b_includeReferencedProjects = Convert-String $includeReferencedProjects Boolean
+
+# the string for versionByBuild is "true" for back-compat
+$b_versionByBuild = $versionByBuild -eq "true"    
+$b_versionByEnvVar = $versionByBuild -eq "byEnvVar"
+$b_versionByPrereleaseNumber = $versionByBuild -eq "byPrereleaseNumber"
+
+$b_automaticallyVersion = $b_versionByBuild -or $b_versionByEnvVar -or $b_versionByPrereleaseNumber
+
+if ($b_automaticallyVersion -and $b_includeReferencedProjects)
+{
+    Write-Warning (Get-LocalizedString -Key "The automatic package versioning and include referenced projects options do not work together. 
+    Referenced projects will not inherit the custom version provided by the automatic versioning settings.")
+}
+
 if ($b_versionByBuild)
 {
-    Write-Verbose "Getting version number from build"
+    Write-Verbose "Autoversion: Getting version number from build"
     ##Get Version from Build
     
+    if($Env:SYSTEM_HOSTTYPE -eq "release") {
+        Write-Error (Get-LocalizedString -Key "Autoversion: Getting version number from build option is not supported in releases")
+        exit 1
+    }
+
     # Regular expression pattern to find the version in the build number 
     # and then apply it to the assemblies
     $VersionRegex = "\d+\.\d+\.\d+(?:\.\d+)?"
@@ -63,6 +88,25 @@ if ($b_versionByBuild)
           }
     }
     $NewVersion = $VersionData[0]
+    Write-Verbose "Version: $NewVersion"
+}
+elseif ($b_versionByEnvVar)
+{
+    Write-Verbose "Autoversion: Getting version number from environment variable"
+    Write-Verbose "Requested '$versionEnvVar'"
+    
+    $NewVersion = [environment]::GetEnvironmentVariable($versionEnvVar)
+    
+    Write-Verbose "Version: $NewVersion"
+}
+elseif ($b_versionByPrereleaseNumber)
+{
+    Write-Verbose "Autoversion: Generating prerelease number"
+
+    $UtcDateTime = (Get-Date).ToUniversalTime()
+    $PreReleaseMoniker = (Get-Date -Date $UtcDateTime -Format "yyyyMMdd-HHmmss")
+
+    $NewVersion = "$requestedMajorVersion.$requestedMinorVersion.$requestedPatchVersion-ci-$PreReleaseMoniker"
     Write-Verbose "Version: $NewVersion"
 }
 
@@ -125,6 +169,22 @@ if (-not $nuGetPath)
     throw (Get-LocalizedString -Key "Unable to locate {0}" -ArgumentList 'nuget.exe')
 }
 
+$allBuildProps = @()
+
+# We set the default to $(BuildConfiguration) so the task works by default with the Visual
+# Studio Build / MSBuild template. Unfortunately, that causes it to *not* work by default
+# with the empty build template, so we just ignore the value if it wasn't substituted with
+# something useful.
+if($configurationToPack -and $configurationToPack -ne '$(BuildConfiguration)')
+{
+    $allBuildProps += @("Configuration=$configurationToPack")
+}
+
+if ($buildProperties)
+{
+    $allBuildProps += @($buildProperties -split ";")
+}
+
 $initialNuGetExtensionsPath = $env:NUGET_EXTENSIONS_PATH
 try
 {
@@ -148,14 +208,19 @@ try
         $slnFolder = $(Get-ItemProperty -Path $fileToPackage -Name 'DirectoryName').DirectoryName
         #Setup Nuget
 
-        $buildProps = "Configuration=$configurationToPack";
-        if ([string]::IsNullOrEmpty($buildProperties) -eq $false)
-        {
-            $buildProps = ($buildProps + ";" + $buildProperties)
-        }
-        $argsPack = "pack `"$fileToPackage`" -OutputDirectory `"$outputdir`" -Properties $buildProps";
+        $argsPack = "pack `"$fileToPackage`" -OutputDirectory `"$outputdir`""
         
-        if ($b_versionByBuild)
+        if ($allBuildProps)
+        {
+            $argsPack += " -Properties $($allBuildProps -join ";")"
+        }
+        
+        if($b_includeReferencedProjects)
+        {
+            $argsPack = ($argsPack + " -IncludeReferencedProjects ");
+        }
+        
+        if ($b_automaticallyVersion)
         {
             $argsPack = ($argsPack + " -version $NewVersion")
         }

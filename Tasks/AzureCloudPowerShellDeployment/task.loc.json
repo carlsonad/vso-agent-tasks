@@ -9,16 +9,19 @@
     "Build",
     "Release"
   ],
+  "runsOn": [
+    "Agent"
+  ],
   "author": "Microsoft Corporation",
   "version": {
     "Major": 1,
-    "Minor": 0,
-    "Patch": 22
+    "Minor": 1,
+    "Patch": 0
   },
   "demands": [
     "azureps"
   ],
-  "minimumAgentVersion": "1.90.0",
+  "minimumAgentVersion": "1.103.0",
   "groups": [
     {
       "name": "newServiceAdvancedOptions",
@@ -52,6 +55,7 @@
       "label": "ms-resource:loc.input.label.ServiceName",
       "defaultValue": "",
       "required": true,
+      "helpMarkDown": "ms-resource:loc.input.help.ServiceName",
       "properties": {
         "EditableOptions": "True"
       }
@@ -60,7 +64,7 @@
       "name": "ServiceLocation",
       "type": "pickList",
       "label": "ms-resource:loc.input.label.ServiceLocation",
-      "defaultValue": "South Central US",
+      "defaultValue": "",
       "required": true,
       "helpMarkDown": "ms-resource:loc.input.help.ServiceLocation",
       "properties": {
@@ -112,7 +116,31 @@
       "type": "boolean",
       "label": "ms-resource:loc.input.label.AllowUpgrade",
       "defaultValue": "true",
+      "helpMarkDown": "ms-resource:loc.input.help.AllowUpgrade",
       "required": true
+    },
+    {
+      "name": "ForceUpgrade",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.ForceUpgrade",
+      "defaultValue": "false",
+      "visibleRule": "AllowUpgrade == true",
+      "helpMarkDown": "ms-resource:loc.input.help.ForceUpgrade",
+      "required": false
+    },
+    {
+      "name": "DiagnosticStorageAccountKeys",
+      "type": "multiLine",
+      "label": "ms-resource:loc.input.label.DiagnosticStorageAccountKeys",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.DiagnosticStorageAccountKeys",
+      "groupName": "newServiceAdvancedOptions",
+      "properties": {
+        "resizable": "true",
+        "rows": "6",
+        "maxLength": "500"
+      }
     },
     {
       "name": "NewServiceAdditionalArguments",
@@ -160,10 +188,19 @@
   ],
   "instanceNameFormat": "ms-resource:loc.instanceNameFormat",
   "execution": {
-    "AzurePowerShell": {
-      "target": "$(currentDirectory)\\Publish-AzureCloudDeployment.ps1",
-      "argumentFormat": "",
-      "workingDirectory": "$(currentDirectory)"
+    "PowerShell3": {
+      "target": "Publish-AzureCloudDeployment.ps1"
     }
+  },
+  "messages": {
+    "Couldnotgettheprimarystoragekeyforstorageaccount0Unabletoapplyanydiagnosticsextensions": "ms-resource:loc.messages.Couldnotgettheprimarystoragekeyforstorageaccount0Unabletoapplyanydiagnosticsextensions",
+    "Couldnotgettheprimarystoragekeyforthepublicconfigstorageaccount0Unabletoapplyanydiagnosticsextensions": "ms-resource:loc.messages.Couldnotgettheprimarystoragekeyforthepublicconfigstorageaccount0Unabletoapplyanydiagnosticsextensions",
+    "Applyinganyconfigureddiagnosticsextensions": "ms-resource:loc.messages.Applyinganyconfigureddiagnosticsextensions",
+    "_0couldnotbeparsedintopartsforregisteringdiagnosticsextensions": "ms-resource:loc.messages._0couldnotbeparsedintopartsforregisteringdiagnosticsextensions",
+    "Nofileswerefoundtodeploywithsearchpattern0": "ms-resource:loc.messages.Nofileswerefoundtodeploywithsearchpattern0",
+    "Foundmorethanonefiletodeploywithsearchpattern0Therecanbeonlyone": "ms-resource:loc.messages.Foundmorethanonefiletodeploywithsearchpattern0Therecanbeonlyone",
+    "Storagekeysaredefinedininvalidformat": "ms-resource:loc.messages.Storagekeysaredefinedininvalidformat",
+    "Unabletofind0usingprovidedsubscription": "ms-resource:loc.messages.Unabletofind0usingprovidedsubscription",
+    "Currentversionofazurepowershelldontsupportexternalstorageaccountforconfiguringdiagnostics": "ms-resource:loc.messages.Currentversionofazurepowershelldontsupportexternalstorageaccountforconfiguringdiagnostics"
   }
 }
